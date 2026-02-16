@@ -1,2 +1,0 @@
-# skopi
-SKOpi Land Token 
