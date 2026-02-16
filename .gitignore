@@ -1,0 +1,8 @@
+
+# never commit keys
+*.pem
+*.key
+id_*
+.github
+github
+github.pub
