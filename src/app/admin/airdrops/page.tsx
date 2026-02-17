@@ -74,8 +74,10 @@ export default function AdminAirdropsPage() {
   const [reconcileReport, setReconcileReport] = useState<Array<{ campaign_id: string; campaign_name: string; drift_tokens: number; remaining_tokens: number | null; ok: boolean }>>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditActionFilter, setAuditActionFilter] = useState("");
+  const [auditActorFilter, setAuditActorFilter] = useState("");
   const [auditFrom, setAuditFrom] = useState("");
   const [auditTo, setAuditTo] = useState("");
+  const [auditNextBefore, setAuditNextBefore] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -263,7 +265,7 @@ export default function AdminAirdropsPage() {
     setSelectedSubmissionIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
   }
 
-  async function downloadCsv(type: "submissions" | "allocations" | "campaigns") {
+  async function downloadCsv(type: "submissions" | "allocations" | "campaigns" | "audit") {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
 
@@ -289,22 +291,29 @@ export default function AdminAirdropsPage() {
     }
   }
 
-  async function loadAuditLogs(useToken?: string) {
+  async function loadAuditLogs(useToken?: string, append = false) {
     const t = (useToken ?? token).trim();
     if (!t) return setError("Enter admin token first");
     try {
       const q = new URLSearchParams();
       if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
       if (auditActionFilter) q.set("action", auditActionFilter);
+      if (auditActorFilter) q.set("actor", auditActorFilter);
       if (auditFrom) q.set("from", new Date(auditFrom).toISOString());
       if (auditTo) q.set("to", new Date(auditTo).toISOString());
+      q.set("limit", "50");
+      if (append && auditNextBefore) q.set("before", auditNextBefore);
+
       const res = await fetch(`/api/admin/airdrop/audit-log?${q.toString()}`, {
         headers: { Authorization: `Bearer ${t}` },
         cache: "no-store",
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load audit logs");
-      setAuditLogs(data.logs || []);
+
+      const newLogs = data.logs || [];
+      setAuditLogs((prev) => (append ? [...prev, ...newLogs] : newLogs));
+      setAuditNextBefore(data.next_before || null);
     } catch (e: any) {
       setError(e?.message || "Failed to load audit logs");
     }
@@ -407,7 +416,7 @@ export default function AdminAirdropsPage() {
     loadSubmissions(selectedCampaignId, undefined, submissionStateFilter);
     loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCampaignId, submissionStateFilter, auditActionFilter, auditFrom, auditTo]);
+  }, [selectedCampaignId, submissionStateFilter, auditActionFilter, auditActorFilter, auditFrom, auditTo]);
 
   return (
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
@@ -588,11 +597,17 @@ export default function AdminAirdropsPage() {
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0 }}>Ops Tools</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={runReconcile} disabled={loading}>Run Reconcile</button>
           <button onClick={() => downloadCsv("submissions")} disabled={loading}>Export Submissions CSV</button>
           <button onClick={() => downloadCsv("allocations")} disabled={loading}>Export Allocations CSV</button>
           <button onClick={() => downloadCsv("campaigns")} disabled={loading}>Export Campaigns CSV</button>
+          <button onClick={() => downloadCsv("audit")} disabled={loading}>Export Audit CSV</button>
+          {reconcileReport.length > 0 && (
+            <span style={{ padding: "2px 8px", borderRadius: 999, background: reconcileReport.some((r) => !r.ok) ? "#fff2f2" : "#eafbea", color: reconcileReport.some((r) => !r.ok) ? "#8a1f1f" : "#1f6b2a", fontSize: 12 }}>
+              {reconcileReport.some((r) => !r.ok) ? `⚠ Mismatch: ${reconcileReport.filter((r) => !r.ok).length}` : "✓ No mismatches"}
+            </span>
+          )}
         </div>
 
         {reconcileReport.length > 0 && (
@@ -627,6 +642,10 @@ export default function AdminAirdropsPage() {
             <input value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} placeholder="e.g. submission_approved" style={{ padding: 6 }} />
           </label>
           <label>
+            Actor:{" "}
+            <input value={auditActorFilter} onChange={(e) => setAuditActorFilter(e.target.value)} placeholder="e.g. iosif" style={{ padding: 6 }} />
+          </label>
+          <label>
             From:{" "}
             <input type="datetime-local" value={auditFrom} onChange={(e) => setAuditFrom(e.target.value)} style={{ padding: 6 }} />
           </label>
@@ -635,6 +654,31 @@ export default function AdminAirdropsPage() {
             <input type="datetime-local" value={auditTo} onChange={(e) => setAuditTo(e.target.value)} style={{ padding: 6 }} />
           </label>
           <button onClick={() => loadAuditLogs()} disabled={loading}>Refresh Audit Log</button>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, fontSize: 12 }}>
+          {[
+            "",
+            "submission_approved",
+            "submission_rejected",
+            "task_created",
+            "task_updated",
+            "task_toggled",
+            "reconcile_run",
+          ].map((a) => (
+            <button
+              key={a || "all"}
+              onClick={() => setAuditActionFilter(a)}
+              style={{
+                padding: "2px 8px",
+                borderRadius: 999,
+                border: "1px solid #ddd",
+                background: auditActionFilter === a ? "#111" : "#fff",
+                color: auditActionFilter === a ? "#fff" : "#111",
+              }}
+            >
+              {a || "all"}
+            </button>
+          ))}
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
@@ -663,6 +707,11 @@ export default function AdminAirdropsPage() {
             {auditLogs.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No audit logs loaded yet.</td></tr>}
           </tbody>
         </table>
+        <div style={{ marginTop: 8 }}>
+          <button onClick={() => loadAuditLogs(undefined, true)} disabled={loading || !auditNextBefore}>
+            {auditNextBefore ? "Load More" : "No More Logs"}
+          </button>
+        </div>
       </div>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}

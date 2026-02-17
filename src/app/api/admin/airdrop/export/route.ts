@@ -72,6 +72,22 @@ export async function GET(req: Request) {
       return new Response(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename=airdrop-campaigns.csv` } });
     }
 
+    if (type === "audit") {
+      let q = supabase
+        .from("airdrop_audit_log")
+        .select("id,action,actor,campaign_id,task_id,submission_id,allocation_id,metadata,created_at")
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (campaignId) q = q.eq("campaign_id", campaignId);
+      const { data, error } = await q;
+      if (error) return new Response(error.message, { status: 500 });
+
+      const headers = ["id","action","actor","campaign_id","task_id","submission_id","allocation_id","metadata","created_at"];
+      const rows = (data || []).map((r) => ({ ...r, metadata: JSON.stringify(r.metadata || {}) }));
+      const csv = toCsv(headers, rows as Array<Record<string, unknown>>);
+      return new Response(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename=airdrop-audit-log.csv` } });
+    }
+
     return new Response(JSON.stringify({ ok: false, error: "Unsupported type" }), { status: 400, headers: { "content-type": "application/json" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error";
