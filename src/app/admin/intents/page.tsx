@@ -24,6 +24,8 @@ export default function AdminIntentsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("");
 
   async function load(useToken?: string) {
     const t = (useToken ?? token).trim();
@@ -35,7 +37,11 @@ export default function AdminIntentsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/intents", {
+      const params = new URLSearchParams();
+      params.set("status", statusFilter);
+      if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
+
+      const res = await fetch(`/api/admin/intents?${params.toString()}`, {
         cache: "no-store",
         headers: {
           Authorization: `Bearer ${t}`,
@@ -57,13 +63,14 @@ export default function AdminIntentsPage() {
     const saved = localStorage.getItem("skopi_admin_token") || "";
     if (saved) {
       setToken(saved);
-      load(saved);
+      // defer first load until filters set (defaults are ready)
+      setTimeout(() => load(saved), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
+    <main style={{ maxWidth: 1150, margin: "30px auto", padding: "0 16px" }}>
       <h1>Admin · Purchase Intents</h1>
       <p style={{ opacity: 0.75 }}>Token-protected admin view.</p>
 
@@ -74,16 +81,43 @@ export default function AdminIntentsPage() {
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder="Enter ADMIN_READ_TOKEN"
-          style={{ width: "100%", maxWidth: 500, padding: 8, marginBottom: 8 }}
+          style={{ width: "100%", maxWidth: 520, padding: 8, marginBottom: 10 }}
         />
-        <div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <label>
+            Status:{" "}
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="all">all</option>
+              <option value="created">created</option>
+              <option value="pending">pending</option>
+              <option value="confirmed">confirmed</option>
+              <option value="failed">failed</option>
+              <option value="expired">expired</option>
+            </select>
+          </label>
+
+          <label>
+            UTM Source:{" "}
+            <input
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              placeholder="e.g. test_x"
+              style={{ padding: 6 }}
+            />
+          </label>
+
           <button onClick={() => load()} disabled={loading}>
-            {loading ? "Loading..." : "Unlock / Refresh"}
+            {loading ? "Loading..." : "Apply / Refresh"}
           </button>
         </div>
       </div>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}
+
+      {!loading && !error && rows.length === 0 && (
+        <p style={{ opacity: 0.7 }}>No intents found for current filters.</p>
+      )}
 
       {!loading && !error && rows.length > 0 && (
         <div style={{ overflowX: "auto", border: "1px solid #ddd", borderRadius: 8 }}>
@@ -109,7 +143,19 @@ export default function AdminIntentsPage() {
                   <td style={{ padding: 8 }}>{r.ft_utm_source || "-"}</td>
                   <td style={{ padding: 8 }}>{r.ft_utm_campaign || "-"}</td>
                   <td style={{ padding: 8 }}><code>{r.id.slice(0, 8)}…</code></td>
-                  <td style={{ padding: 8 }}>{r.tx_signature ? <code>{r.tx_signature.slice(0, 10)}…</code> : "-"}</td>
+                  <td style={{ padding: 8 }}>
+                    {r.tx_signature ? (
+                      <a
+                        href={`https://solscan.io/tx/${r.tx_signature}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {r.tx_signature.slice(0, 10)}…
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                   <td style={{ padding: 8 }}><a href={`/receipt/${r.id}`}>Open</a></td>
                 </tr>
               ))}
