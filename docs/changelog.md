@@ -24,3 +24,30 @@ This file tracks material product/rules changes for public verification.
 ### Notes
 - Real-money testing intentionally deferred during this phase.
 - See `docs/transparency-workflow.md` for verification process.
+
+## 2026-02-17 — Airdrop Admin/Ops Hardening + Rule Controls
+
+### Added
+- Bulk submission approve/reject actions in admin queue.
+- Reconciliation endpoint + admin report UI (`distributed_tokens` drift checks).
+- CSV export endpoints for submissions, allocations, campaigns.
+- Submission idempotency + lifecycle integrity controls:
+  - `client_submission_id`
+  - strict state transition trigger
+  - state versioning / timestamp tracking
+- DB-driven task verifier rules:
+  - `allowed_domains`
+  - `requires_https`
+  - `min_evidence_length`
+- Admin task editing flow (PATCH) + one-click task enable/disable.
+- Supabase allowlist-based admin auth helper with legacy token fallback.
+- Consolidated migration bundle:
+  - `supabase/migrations_bundle/airdrop_v2_all_pending.sql`
+
+### Why
+- Improve ops safety, anti-abuse resilience, and production maintainability.
+- Reduce migration friction with one-run bundle for new or lagging environments.
+
+### User Impact
+- Users receive safer, more predictable submission validation.
+- Admins can operate faster (bulk actions, reconcile, exports, task toggles/edits).
