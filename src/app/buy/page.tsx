@@ -245,7 +245,13 @@ export default function BuyPage() {
             </a>
           </div>
 
-          <p style={{ marginTop: 14, marginBottom: 0 }}>
+          <p style={{ marginTop: 12, marginBottom: 10 }}>
+            <a href={`/receipt/${intent.id}`} style={{ textDecoration: "underline" }}>
+              Open Receipt Page
+            </a>
+          </p>
+
+          <p style={{ marginTop: 0, marginBottom: 0 }}>
             ⚠️ Send the <strong>exact USDC amount</strong> with this reference.
           </p>
         </div>
