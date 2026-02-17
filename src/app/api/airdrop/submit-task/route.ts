@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     const evidenceUrlRaw = String(body?.evidence_url || "").trim();
     const evidenceUrl = normalizeEvidenceUrl(evidenceUrlRaw);
     const userId = body?.user_id ? String(body.user_id) : null;
+    const clientSubmissionId = body?.client_submission_id ? String(body.client_submission_id).trim() : null;
 
     if (!campaignId || !taskCode || !wallet || !evidenceUrl) {
       return NextResponse.json({ ok: false, error: "campaign_id, task_code, wallet_address, evidence_url are required" }, { status: 400 });
@@ -107,6 +108,23 @@ export async function POST(req: Request) {
     if (taskErr || !task) return NextResponse.json({ ok: false, error: "Task not found" }, { status: 404 });
     if (!task.active) return NextResponse.json({ ok: false, error: "Task inactive" }, { status: 400 });
 
+    // Idempotency guard: same client submission intent returns existing row
+    if (clientSubmissionId) {
+      const { data: existing, error: existingErr } = await supabase
+        .from("airdrop_submissions")
+        .select("id,campaign_id,task_id,state,submitted_at")
+        .eq("campaign_id", campaignId)
+        .eq("task_id", task.id)
+        .eq("wallet_address", wallet)
+        .eq("client_submission_id", clientSubmissionId)
+        .maybeSingle();
+
+      if (existingErr) return NextResponse.json({ ok: false, error: existingErr.message }, { status: 500 });
+      if (existing) {
+        return NextResponse.json({ ok: true, submission: existing, idempotent: true, message: "Already received this submission." });
+      }
+    }
+
     // Duplicate evidence protection for same campaign/task
     const { data: existingEvidence, error: dupErr } = await supabase
       .from("airdrop_submissions")
@@ -148,6 +166,7 @@ export async function POST(req: Request) {
         wallet_address: wallet,
         handle,
         evidence_url: evidenceUrl,
+        client_submission_id: clientSubmissionId,
         state: submissionState,
         notes: task.requires_manual ? "Requires manual review" : "Auto-verified by basic checks",
       })

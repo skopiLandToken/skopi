@@ -96,6 +96,7 @@ export default function AirdropPage() {
   const [wallet, setWallet] = useState("");
   const [handle, setHandle] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID());
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -188,7 +189,7 @@ export default function AirdropPage() {
       const res = await fetch("/api/airdrop/submit-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign_id: campaignId, task_code: taskCode, wallet_address: wallet.trim(), handle: handle.trim() || null, evidence_url: evidenceUrl.trim() }),
+        body: JSON.stringify({ campaign_id: campaignId, task_code: taskCode, wallet_address: wallet.trim(), handle: handle.trim() || null, evidence_url: evidenceUrl.trim(), client_submission_id: clientSubmissionId }),
       });
 
       const data = await res.json();
@@ -205,6 +206,7 @@ export default function AirdropPage() {
       await loadAllocations(wallet.trim());
       await loadSubmissions(wallet.trim());
       setEvidenceUrl("");
+      setClientSubmissionId(crypto.randomUUID());
     } catch (e) {
       setResult({ ok: false, message: e instanceof Error ? e.message : "Submission failed" });
     } finally {
