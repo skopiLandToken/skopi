@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isAdminAuthorized } from "@/lib/admin-auth";
+import { logAirdropAudit } from "@/lib/airdrop-audit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,10 +55,18 @@ export async function GET(req: Request) {
       });
     }
 
+    const mismatches = report.filter((r) => !r.ok).length;
+
+    await logAirdropAudit({
+      action: "reconcile_run",
+      campaign_id: campaignId || null,
+      metadata: { checked_campaigns: report.length, mismatches },
+    });
+
     return NextResponse.json({
       ok: true,
       checked_campaigns: report.length,
-      mismatches: report.filter((r) => !r.ok).length,
+      mismatches,
       report,
       checked_at: new Date().toISOString(),
     });

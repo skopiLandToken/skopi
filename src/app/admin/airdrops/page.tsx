@@ -28,6 +28,18 @@ type Task = {
   active: boolean;
 };
 
+type AuditLog = {
+  id: string;
+  action: string;
+  actor?: string | null;
+  campaign_id?: string | null;
+  task_id?: string | null;
+  submission_id?: string | null;
+  allocation_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
 type Submission = {
   id: string;
   campaign_id: string;
@@ -60,6 +72,8 @@ export default function AdminAirdropsPage() {
   const [submissionStateFilter, setSubmissionStateFilter] = useState<"pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all">("pending_review");
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
   const [reconcileReport, setReconcileReport] = useState<Array<{ campaign_id: string; campaign_name: string; drift_tokens: number; remaining_tokens: number | null; ok: boolean }>>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditActionFilter, setAuditActionFilter] = useState("");
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -273,6 +287,25 @@ export default function AdminAirdropsPage() {
     }
   }
 
+  async function loadAuditLogs(useToken?: string) {
+    const t = (useToken ?? token).trim();
+    if (!t) return setError("Enter admin token first");
+    try {
+      const q = new URLSearchParams();
+      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
+      if (auditActionFilter) q.set("action", auditActionFilter);
+      const res = await fetch(`/api/admin/airdrop/audit-log?${q.toString()}`, {
+        headers: { Authorization: `Bearer ${t}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load audit logs");
+      setAuditLogs(data.logs || []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load audit logs");
+    }
+  }
+
   async function runReconcile() {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
@@ -368,8 +401,9 @@ export default function AdminAirdropsPage() {
     if (!selectedCampaignId) return;
     loadTasks(selectedCampaignId);
     loadSubmissions(selectedCampaignId, undefined, submissionStateFilter);
+    loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCampaignId, submissionStateFilter]);
+  }, [selectedCampaignId, submissionStateFilter, auditActionFilter]);
 
   return (
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
@@ -579,6 +613,44 @@ export default function AdminAirdropsPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Audit Log</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+          <label>
+            Action:{" "}
+            <input value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} placeholder="e.g. submission_approved" style={{ padding: 6 }} />
+          </label>
+          <button onClick={() => loadAuditLogs()} disabled={loading}>Refresh Audit Log</button>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "#f6f6f6" }}>
+              <th style={{ textAlign: "left", padding: 8 }}>Time</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Action</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Actor</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Refs</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Metadata</th>
+            </tr>
+          </thead>
+          <tbody>
+            {auditLogs.map((log) => (
+              <tr key={log.id} style={{ borderTop: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>{new Date(log.created_at).toLocaleString()}</td>
+                <td style={{ padding: 8 }}><code>{log.action}</code></td>
+                <td style={{ padding: 8 }}>{log.actor || "-"}</td>
+                <td style={{ padding: 8, fontSize: 12 }}>
+                  c:{log.campaign_id ? `${log.campaign_id.slice(0, 8)}…` : "-"} · t:{log.task_id ? `${log.task_id.slice(0, 8)}…` : "-"} · s:{log.submission_id ? `${log.submission_id.slice(0, 8)}…` : "-"}
+                </td>
+                <td style={{ padding: 8, fontSize: 12, maxWidth: 340, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {log.metadata ? JSON.stringify(log.metadata) : "{}"}
+                </td>
+              </tr>
+            ))}
+            {auditLogs.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No audit logs loaded yet.</td></tr>}
+          </tbody>
+        </table>
       </div>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}

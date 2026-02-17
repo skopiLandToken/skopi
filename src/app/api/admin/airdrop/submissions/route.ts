@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isAdminAuthorized } from "@/lib/admin-auth";
+import { logAirdropAudit } from "@/lib/airdrop-audit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -90,8 +91,19 @@ export async function POST(req: Request) {
           .update({ state: "revoked", reviewed_at: new Date().toISOString(), reviewer, notes })
           .eq("id", submissionId);
 
-        if (error) results.push({ submission_id: submissionId, ok: false, error: error.message });
-        else results.push({ submission_id: submissionId, ok: true });
+        if (error) {
+          results.push({ submission_id: submissionId, ok: false, error: error.message });
+        } else {
+          results.push({ submission_id: submissionId, ok: true });
+          await logAirdropAudit({
+            action: "submission_rejected",
+            actor: reviewer,
+            campaign_id: sub.campaign_id,
+            task_id: sub.task_id,
+            submission_id: submissionId,
+            metadata: { reason: notes },
+          });
+        }
         continue;
       }
 
@@ -122,8 +134,20 @@ export async function POST(req: Request) {
         })
         .eq("id", submissionId);
 
-      if (error) results.push({ submission_id: submissionId, ok: false, error: error.message });
-      else results.push({ submission_id: submissionId, ok: true, allocation_id: alloc.allocation_id, remaining_tokens: alloc.remaining_tokens });
+      if (error) {
+        results.push({ submission_id: submissionId, ok: false, error: error.message });
+      } else {
+        results.push({ submission_id: submissionId, ok: true, allocation_id: alloc.allocation_id, remaining_tokens: alloc.remaining_tokens });
+        await logAirdropAudit({
+          action: "submission_approved",
+          actor: reviewer,
+          campaign_id: sub.campaign_id,
+          task_id: sub.task_id,
+          submission_id: submissionId,
+          allocation_id: alloc.allocation_id,
+          metadata: { remaining_tokens: alloc.remaining_tokens, notes: notes || "Approved by reviewer" },
+        });
+      }
     }
 
     const okCount = results.filter((r) => r.ok).length;
