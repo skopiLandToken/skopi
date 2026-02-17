@@ -74,6 +74,8 @@ export default function AdminAirdropsPage() {
   const [reconcileReport, setReconcileReport] = useState<Array<{ campaign_id: string; campaign_name: string; drift_tokens: number; remaining_tokens: number | null; ok: boolean }>>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditActionFilter, setAuditActionFilter] = useState("");
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -294,6 +296,8 @@ export default function AdminAirdropsPage() {
       const q = new URLSearchParams();
       if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
       if (auditActionFilter) q.set("action", auditActionFilter);
+      if (auditFrom) q.set("from", new Date(auditFrom).toISOString());
+      if (auditTo) q.set("to", new Date(auditTo).toISOString());
       const res = await fetch(`/api/admin/airdrop/audit-log?${q.toString()}`, {
         headers: { Authorization: `Bearer ${t}` },
         cache: "no-store",
@@ -403,7 +407,7 @@ export default function AdminAirdropsPage() {
     loadSubmissions(selectedCampaignId, undefined, submissionStateFilter);
     loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCampaignId, submissionStateFilter, auditActionFilter]);
+  }, [selectedCampaignId, submissionStateFilter, auditActionFilter, auditFrom, auditTo]);
 
   return (
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
@@ -621,6 +625,14 @@ export default function AdminAirdropsPage() {
           <label>
             Action:{" "}
             <input value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} placeholder="e.g. submission_approved" style={{ padding: 6 }} />
+          </label>
+          <label>
+            From:{" "}
+            <input type="datetime-local" value={auditFrom} onChange={(e) => setAuditFrom(e.target.value)} style={{ padding: 6 }} />
+          </label>
+          <label>
+            To:{" "}
+            <input type="datetime-local" value={auditTo} onChange={(e) => setAuditTo(e.target.value)} style={{ padding: 6 }} />
           </label>
           <button onClick={() => loadAuditLogs()} disabled={loading}>Refresh Audit Log</button>
         </div>
