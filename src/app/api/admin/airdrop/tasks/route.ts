@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("airdrop_tasks")
-      .select("id,campaign_id,code,title,description,bounty_tokens,requires_manual,max_per_user,active,sort_order,created_at,updated_at")
+      .select("id,campaign_id,code,title,description,bounty_tokens,requires_manual,max_per_user,allowed_domains,requires_https,min_evidence_length,active,sort_order,created_at,updated_at")
       .eq("campaign_id", campaignId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
@@ -61,6 +61,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "bounty_tokens must be >= 0" }, { status: 400 });
     }
 
+    const allowedDomains = Array.isArray(body?.allowed_domains)
+      ? body.allowed_domains.map((x: unknown) => String(x).trim().toLowerCase()).filter(Boolean)
+      : [];
+
     const insert = {
       campaign_id: campaignId,
       code,
@@ -69,6 +73,9 @@ export async function POST(req: Request) {
       bounty_tokens: bounty,
       requires_manual: !!body?.requires_manual,
       max_per_user: body?.max_per_user ? Number(body.max_per_user) : null,
+      allowed_domains: allowedDomains.length > 0 ? allowedDomains : null,
+      requires_https: body?.requires_https ?? true,
+      min_evidence_length: Number(body?.min_evidence_length ?? 10),
       active: body?.active ?? true,
       sort_order: body?.sort_order ? Number(body.sort_order) : 0,
     };
@@ -76,7 +83,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase
       .from("airdrop_tasks")
       .insert(insert)
-      .select("id,campaign_id,code,title,bounty_tokens,requires_manual,max_per_user,active,sort_order,created_at")
+      .select("id,campaign_id,code,title,bounty_tokens,requires_manual,max_per_user,allowed_domains,requires_https,min_evidence_length,active,sort_order,created_at")
       .single();
 
     if (error) {

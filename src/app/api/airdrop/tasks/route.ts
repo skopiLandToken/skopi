@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("airdrop_tasks")
-      .select("id,campaign_id,code,title,description,bounty_tokens,requires_manual,max_per_user,active,sort_order")
+      .select("id,campaign_id,code,title,description,bounty_tokens,requires_manual,max_per_user,allowed_domains,requires_https,min_evidence_length,active,sort_order")
       .eq("campaign_id", campaignId)
       .eq("active", true)
       .order("sort_order", { ascending: true })

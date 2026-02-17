@@ -18,21 +18,14 @@ function normalizeEvidenceUrl(raw: string) {
   }
 }
 
-function allowedDomainsForTask(taskCode: string): string[] | null {
-  const code = taskCode.toLowerCase();
-  if (code.includes("x") || code.includes("twitter")) return ["x.com", "twitter.com"];
-  if (code.includes("tiktok")) return ["tiktok.com"];
-  if (code.includes("instagram") || code.includes("insta")) return ["instagram.com"];
-  if (code.includes("youtube") || code.includes("yt")) return ["youtube.com", "youtu.be"];
-  return null;
-}
-
-function domainAllowed(taskCode: string, evidenceUrl: string) {
-  const allow = allowedDomainsForTask(taskCode);
-  if (!allow) return true;
+function domainAllowed(allowedDomains: string[] | null | undefined, evidenceUrl: string) {
+  if (!allowedDomains || allowedDomains.length === 0) return true;
   try {
     const host = new URL(evidenceUrl).hostname.toLowerCase();
-    return allow.some((d) => host === d || host.endsWith(`.${d}`));
+    return allowedDomains.some((d) => {
+      const normalized = String(d).trim().toLowerCase();
+      return normalized && (host === normalized || host.endsWith(`.${normalized}`));
+    });
   } catch {
     return false;
   }
@@ -70,10 +63,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "evidence_url_invalid" }, { status: 400 });
     }
 
-    if (!domainAllowed(taskCode, evidenceUrl)) {
-      return NextResponse.json({ ok: false, error: "evidence_domain_not_allowed" }, { status: 400 });
-    }
-
     // Wallet-level rate limit
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count: recentCount, error: rateErr } = await supabase
@@ -100,13 +89,25 @@ export async function POST(req: Request) {
     // Task must exist and active
     const { data: task, error: taskErr } = await supabase
       .from("airdrop_tasks")
-      .select("id,code,bounty_tokens,requires_manual,max_per_user,active")
+      .select("id,code,bounty_tokens,requires_manual,max_per_user,allowed_domains,requires_https,min_evidence_length,active")
       .eq("campaign_id", campaignId)
       .eq("code", taskCode)
       .single();
 
     if (taskErr || !task) return NextResponse.json({ ok: false, error: "Task not found" }, { status: 404 });
     if (!task.active) return NextResponse.json({ ok: false, error: "Task inactive" }, { status: 400 });
+
+    if (task.requires_https && !/^https:\/\//i.test(evidenceUrl)) {
+      return NextResponse.json({ ok: false, error: "evidence_https_required" }, { status: 400 });
+    }
+
+    if (evidenceUrl.length < Number(task.min_evidence_length || 0)) {
+      return NextResponse.json({ ok: false, error: "evidence_too_short" }, { status: 400 });
+    }
+
+    if (!domainAllowed(task.allowed_domains as string[] | null | undefined, evidenceUrl)) {
+      return NextResponse.json({ ok: false, error: "evidence_domain_not_allowed" }, { status: 400 });
+    }
 
     // Idempotency guard: same client submission intent returns existing row
     if (clientSubmissionId) {
