@@ -18,6 +18,7 @@ type Task = {
   campaign_id: string;
   code: string;
   title: string;
+  description?: string | null;
   bounty_tokens: string;
   requires_manual: boolean;
   max_per_user?: number | null;
@@ -76,6 +77,7 @@ export default function AdminAirdropsPage() {
   const [taskAllowedDomains, setTaskAllowedDomains] = useState("");
   const [taskRequiresHttps, setTaskRequiresHttps] = useState(true);
   const [taskMinEvidenceLen, setTaskMinEvidenceLen] = useState("10");
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const submissionCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -153,6 +155,25 @@ export default function AdminAirdropsPage() {
     finally { setLoading(false); }
   }
 
+  function startEditTask(task: Task) {
+    setEditingTaskId(task.id);
+    setTaskCode(task.code || "");
+    setTaskTitle(task.title || "");
+    setTaskDesc(task.description || "");
+    setTaskBounty(String(task.bounty_tokens || "0"));
+    setTaskType(task.requires_manual ? "manual" : "auto");
+    setTaskMaxPerUser(task.max_per_user != null ? String(task.max_per_user) : "");
+    setTaskAllowedDomains(task.allowed_domains?.join(",") || "");
+    setTaskRequiresHttps(task.requires_https ?? true);
+    setTaskMinEvidenceLen(String(task.min_evidence_length ?? 10));
+  }
+
+  function clearTaskForm() {
+    setEditingTaskId(null);
+    setTaskCode(""); setTaskTitle(""); setTaskDesc(""); setTaskBounty("0"); setTaskType("auto"); setTaskMaxPerUser("");
+    setTaskAllowedDomains(""); setTaskRequiresHttps(true); setTaskMinEvidenceLen("10");
+  }
+
   async function createTask() {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
@@ -183,10 +204,42 @@ export default function AdminAirdropsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create task");
-      setTaskCode(""); setTaskTitle(""); setTaskDesc(""); setTaskBounty("0"); setTaskType("auto"); setTaskMaxPerUser("");
-      setTaskAllowedDomains(""); setTaskRequiresHttps(true); setTaskMinEvidenceLen("10");
+      clearTaskForm();
       await loadTasks(selectedCampaignId, t);
     } catch (e: any) { setError(e?.message || "Failed to create task"); }
+    finally { setLoading(false); }
+  }
+
+  async function updateTask() {
+    const t = token.trim();
+    if (!t) return setError("Enter admin token first");
+    if (!editingTaskId) return setError("No task selected for editing");
+
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch("/api/admin/airdrop/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({
+          task_id: editingTaskId,
+          code: taskCode.trim().toLowerCase(),
+          title: taskTitle.trim(),
+          description: taskDesc || null,
+          bounty_tokens: Number(taskBounty || 0),
+          requires_manual: taskType === "manual",
+          max_per_user: taskMaxPerUser ? Number(taskMaxPerUser) : null,
+          allowed_domains: taskAllowedDomains
+            ? taskAllowedDomains.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)
+            : null,
+          requires_https: taskRequiresHttps,
+          min_evidence_length: Number(taskMinEvidenceLen || 10),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to update task");
+      clearTaskForm();
+      await loadTasks(selectedCampaignId, t);
+    } catch (e: any) { setError(e?.message || "Failed to update task"); }
     finally { setLoading(false); }
   }
 
@@ -376,15 +429,24 @@ export default function AdminAirdropsPage() {
           </label>
         </div>
         <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, opacity: 0.75 }}>
-          Current mode: <strong>{taskType === "auto" ? "Auto" : "Manual review"}</strong>
+          Current mode: <strong>{taskType === "auto" ? "Auto" : "Manual review"}</strong>{editingTaskId ? " · Editing existing task" : ""}
         </p>
-        <div style={{ marginTop: 10 }}><button onClick={createTask} disabled={loading || !selectedCampaignId}>Add Task</button></div>
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {!editingTaskId ? (
+            <button onClick={createTask} disabled={loading || !selectedCampaignId}>Add Task</button>
+          ) : (
+            <>
+              <button onClick={updateTask} disabled={loading}>Save Task Changes</button>
+              <button onClick={clearTaskForm} disabled={loading}>Cancel Edit</button>
+            </>
+          )}
+        </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Code</th><th style={{ textAlign: "left", padding: 8 }}>Title</th><th style={{ textAlign: "left", padding: 8 }}>Bounty</th><th style={{ textAlign: "left", padding: 8 }}>Manual?</th><th style={{ textAlign: "left", padding: 8 }}>Rules</th></tr></thead>
+          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Code</th><th style={{ textAlign: "left", padding: 8 }}>Title</th><th style={{ textAlign: "left", padding: 8 }}>Bounty</th><th style={{ textAlign: "left", padding: 8 }}>Manual?</th><th style={{ textAlign: "left", padding: 8 }}>Rules</th><th style={{ textAlign: "left", padding: 8 }}>Actions</th></tr></thead>
           <tbody>
-            {tasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}><code>{t.code}</code></td><td style={{ padding: 8 }}>{t.title}</td><td style={{ padding: 8 }}>{t.bounty_tokens}</td><td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td><td style={{ padding: 8, fontSize: 12 }}>{t.requires_https === false ? "http/https" : "https only"} · min:{t.min_evidence_length ?? 10} · domains:{t.allowed_domains?.length ? t.allowed_domains.join("|") : "any"}</td></tr>)}
-            {tasks.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No tasks for selected campaign.</td></tr>}
+            {tasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}><code>{t.code}</code></td><td style={{ padding: 8 }}>{t.title}</td><td style={{ padding: 8 }}>{t.bounty_tokens}</td><td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td><td style={{ padding: 8, fontSize: 12 }}>{t.requires_https === false ? "http/https" : "https only"} · min:{t.min_evidence_length ?? 10} · domains:{t.allowed_domains?.length ? t.allowed_domains.join("|") : "any"}</td><td style={{ padding: 8, display: "flex", gap: 6 }}><button onClick={() => startEditTask(t)} disabled={loading}>Edit</button></td></tr>)}
+            {tasks.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No tasks for selected campaign.</td></tr>}
           </tbody>
         </table>
       </div>
