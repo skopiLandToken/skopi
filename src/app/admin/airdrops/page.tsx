@@ -16,9 +16,25 @@ type Campaign = {
   created_at: string;
 };
 
+type Task = {
+  id: string;
+  campaign_id: string;
+  code: string;
+  title: string;
+  description?: string | null;
+  bounty_tokens: string;
+  requires_manual: boolean;
+  max_per_user?: number | null;
+  active: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
 export default function AdminAirdropsPage() {
   const [token, setToken] = useState("");
   const [rows, setRows] = useState<Campaign[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +45,15 @@ export default function AdminAirdropsPage() {
   const [poolTokens, setPoolTokens] = useState("");
   const [capPerUser, setCapPerUser] = useState("");
 
-  async function load(useToken?: string) {
+  const [taskCode, setTaskCode] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDesc, setTaskDesc] = useState("");
+  const [taskBounty, setTaskBounty] = useState("0");
+  const [taskManual, setTaskManual] = useState(false);
+  const [taskMaxPerUser, setTaskMaxPerUser] = useState("");
+  const [taskSortOrder, setTaskSortOrder] = useState("0");
+
+  async function loadCampaigns(useToken?: string) {
     const t = (useToken ?? token).trim();
     if (!t) {
       setError("Enter admin token first");
@@ -45,13 +69,37 @@ export default function AdminAirdropsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load campaigns");
-      setRows(data.campaigns || []);
+      const campaigns = data.campaigns || [];
+      setRows(campaigns);
       localStorage.setItem("skopi_admin_token", t);
+
+      if (!selectedCampaignId && campaigns.length > 0) {
+        setSelectedCampaignId(campaigns[0].id);
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load campaigns");
       setRows([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadTasks(campaignId?: string, useToken?: string) {
+    const t = (useToken ?? token).trim();
+    const cid = campaignId || selectedCampaignId;
+    if (!t || !cid) return;
+
+    try {
+      const res = await fetch(`/api/admin/airdrop/tasks?campaign_id=${cid}`, {
+        headers: { Authorization: `Bearer ${t}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load tasks");
+      setTasks(data.tasks || []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load tasks");
+      setTasks([]);
     }
   }
 
@@ -88,9 +136,56 @@ export default function AdminAirdropsPage() {
       setPoolTokens("");
       setCapPerUser("");
 
-      await load(t);
+      await loadCampaigns(t);
     } catch (e: any) {
       setError(e?.message || "Failed to create campaign");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createTask() {
+    const t = token.trim();
+    if (!t) return setError("Enter admin token first");
+    if (!selectedCampaignId) return setError("Select a campaign first");
+    if (!taskCode.trim()) return setError("Task code is required");
+    if (!taskTitle.trim()) return setError("Task title is required");
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/airdrop/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${t}`,
+        },
+        body: JSON.stringify({
+          campaign_id: selectedCampaignId,
+          code: taskCode.trim().toLowerCase(),
+          title: taskTitle.trim(),
+          description: taskDesc || null,
+          bounty_tokens: Number(taskBounty || 0),
+          requires_manual: taskManual,
+          max_per_user: taskMaxPerUser ? Number(taskMaxPerUser) : null,
+          sort_order: Number(taskSortOrder || 0),
+          active: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create task");
+
+      setTaskCode("");
+      setTaskTitle("");
+      setTaskDesc("");
+      setTaskBounty("0");
+      setTaskManual(false);
+      setTaskMaxPerUser("");
+      setTaskSortOrder("0");
+
+      await loadTasks(selectedCampaignId, t);
+    } catch (e: any) {
+      setError(e?.message || "Failed to create task");
     } finally {
       setLoading(false);
     }
@@ -100,15 +195,20 @@ export default function AdminAirdropsPage() {
     const saved = localStorage.getItem("skopi_admin_token") || "";
     if (saved) {
       setToken(saved);
-      setTimeout(() => load(saved), 0);
+      setTimeout(() => loadCampaigns(saved), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (selectedCampaignId) loadTasks(selectedCampaignId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampaignId]);
+
   return (
-    <main style={{ maxWidth: 1200, margin: "30px auto", padding: "0 16px" }}>
+    <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
       <h1>Admin · Airdrop Campaigns (V2)</h1>
-      <p style={{ opacity: 0.75 }}>FCFS pool-limited campaigns with lock period.</p>
+      <p style={{ opacity: 0.75 }}>Create campaigns, then define tasks + bounties.</p>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <label style={{ display: "block", marginBottom: 8 }}>Admin Token</label>
@@ -119,7 +219,7 @@ export default function AdminAirdropsPage() {
           placeholder="Enter ADMIN_READ_TOKEN"
           style={{ width: "100%", maxWidth: 520, padding: 8, marginBottom: 10 }}
         />
-        <button onClick={() => load()} disabled={loading}>{loading ? "Loading..." : "Unlock / Refresh"}</button>
+        <button onClick={() => loadCampaigns()} disabled={loading}>{loading ? "Loading..." : "Unlock / Refresh"}</button>
       </div>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
@@ -134,12 +234,73 @@ export default function AdminAirdropsPage() {
             <option value="archived">archived</option>
           </select>
           <input value={lockDays} onChange={(e) => setLockDays(e.target.value)} placeholder="Lock days (default 90)" />
-          <input value={poolTokens} onChange={(e) => setPoolTokens(e.target.value)} placeholder="Pool tokens (required for FCFS)" />
+          <input value={poolTokens} onChange={(e) => setPoolTokens(e.target.value)} placeholder="Pool tokens (optional)" />
           <input value={capPerUser} onChange={(e) => setCapPerUser(e.target.value)} placeholder="Per-user cap (optional)" />
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" />
         </div>
         <div style={{ marginTop: 10 }}>
           <button onClick={createCampaign} disabled={loading}>{loading ? "Saving..." : "Create Campaign"}</button>
+        </div>
+      </div>
+
+      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Tasks & Bounties</h3>
+        <div style={{ marginBottom: 8 }}>
+          <label>
+            Campaign:{" "}
+            <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)}>
+              <option value="">Select campaign</option>
+              {rows.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.status})</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
+          <input value={taskCode} onChange={(e) => setTaskCode(e.target.value)} placeholder="Task code (e.g. follow_x)" />
+          <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
+          <input value={taskBounty} onChange={(e) => setTaskBounty(e.target.value)} placeholder="Bounty tokens" />
+          <input value={taskMaxPerUser} onChange={(e) => setTaskMaxPerUser(e.target.value)} placeholder="Max per user (optional)" />
+          <input value={taskSortOrder} onChange={(e) => setTaskSortOrder(e.target.value)} placeholder="Sort order" />
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={taskManual} onChange={(e) => setTaskManual(e.target.checked)} />
+            Requires manual review
+          </label>
+          <input value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} placeholder="Task description (optional)" style={{ gridColumn: "1 / span 2" }} />
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <button onClick={createTask} disabled={loading || !selectedCampaignId}>{loading ? "Saving..." : "Add Task"}</button>
+        </div>
+
+        <div style={{ overflowX: "auto", border: "1px solid #eee", borderRadius: 8, marginTop: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: "#f6f6f6" }}>
+                <th style={{ textAlign: "left", padding: 8 }}>Code</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Title</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Bounty</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Manual?</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Max/User</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t) => (
+                <tr key={t.id} style={{ borderTop: "1px solid #eee" }}>
+                  <td style={{ padding: 8 }}><code>{t.code}</code></td>
+                  <td style={{ padding: 8 }}>{t.title}</td>
+                  <td style={{ padding: 8 }}>{t.bounty_tokens}</td>
+                  <td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td>
+                  <td style={{ padding: 8 }}>{t.max_per_user ?? "-"}</td>
+                  <td style={{ padding: 8 }}>{t.active ? "yes" : "no"}</td>
+                </tr>
+              ))}
+              {tasks.length === 0 && (
+                <tr><td style={{ padding: 8 }} colSpan={6}>No tasks yet for selected campaign.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -155,30 +316,23 @@ export default function AdminAirdropsPage() {
               <th style={{ textAlign: "left", padding: 8 }}>Lock (days)</th>
               <th style={{ textAlign: "left", padding: 8 }}>Pool</th>
               <th style={{ textAlign: "left", padding: 8 }}>Distributed</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Remaining</th>
               <th style={{ textAlign: "left", padding: 8 }}>Per-user cap</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
-              const pool = r.pool_tokens ? Number(r.pool_tokens) : 0;
-              const dist = r.distributed_tokens ? Number(r.distributed_tokens) : 0;
-              const remaining = Math.max(pool - dist, 0);
-              return (
-                <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
-                  <td style={{ padding: 8 }}>{new Date(r.created_at).toLocaleString()}</td>
-                  <td style={{ padding: 8 }}>{r.name}</td>
-                  <td style={{ padding: 8 }}>{r.status}</td>
-                  <td style={{ padding: 8 }}>{r.lock_days}</td>
-                  <td style={{ padding: 8 }}>{r.pool_tokens || "-"}</td>
-                  <td style={{ padding: 8 }}>{r.distributed_tokens || "0"}</td>
-                  <td style={{ padding: 8 }}>{r.pool_tokens ? remaining.toFixed(6) : "-"}</td>
-                  <td style={{ padding: 8 }}>{r.per_user_cap || "-"}</td>
-                </tr>
-              );
-            })}
+            {rows.map((r) => (
+              <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>{new Date(r.created_at).toLocaleString()}</td>
+                <td style={{ padding: 8 }}>{r.name}</td>
+                <td style={{ padding: 8 }}>{r.status}</td>
+                <td style={{ padding: 8 }}>{r.lock_days}</td>
+                <td style={{ padding: 8 }}>{r.pool_tokens || "-"}</td>
+                <td style={{ padding: 8 }}>{r.distributed_tokens || "0"}</td>
+                <td style={{ padding: 8 }}>{r.per_user_cap || "-"}</td>
+              </tr>
+            ))}
             {rows.length === 0 && (
-              <tr><td style={{ padding: 8 }} colSpan={8}>No campaigns yet.</td></tr>
+              <tr><td style={{ padding: 8 }} colSpan={7}>No campaigns yet.</td></tr>
             )}
           </tbody>
         </table>
