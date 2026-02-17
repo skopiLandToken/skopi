@@ -57,6 +57,13 @@ function fmt(v: string | number | null | undefined) {
   return n.toFixed(2).replace(/\.00$/, "");
 }
 
+function stateBadgeStyle(state: string) {
+  if (state === "pending_review") return { background: "#fff7e6", color: "#8a5a00" };
+  if (state === "verified_auto" || state === "verified_manual") return { background: "#eafbea", color: "#1f6b2a" };
+  if (state === "revoked") return { background: "#fff2f2", color: "#8a1f1f" };
+  return { background: "#f2f2f2", color: "#444" };
+}
+
 export default function AirdropPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -72,6 +79,7 @@ export default function AirdropPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submissionFilter, setSubmissionFilter] = useState<"all" | "pending_review" | "verified_auto" | "verified_manual" | "revoked">("all");
 
   const selectedCampaign = useMemo(
     () => campaigns.find((c) => c.id === campaignId) || null,
@@ -81,6 +89,11 @@ export default function AirdropPage() {
   const selectedTask = useMemo(
     () => tasks.find((t) => t.code === taskCode) || null,
     [tasks, taskCode]
+  );
+
+  const filteredSubmissions = useMemo(
+    () => (submissionFilter === "all" ? submissions : submissions.filter((s) => s.state === submissionFilter)),
+    [submissions, submissionFilter]
   );
 
   async function loadCampaigns() {
@@ -294,8 +307,20 @@ export default function AirdropPage() {
       </section>
 
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>My Submissions</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <h3 style={{ marginTop: 0, marginBottom: 0 }}>My Submissions</h3>
+          <label style={{ fontSize: 13 }}>
+            Filter state{" "}
+            <select value={submissionFilter} onChange={(e) => setSubmissionFilter(e.target.value as "all" | "pending_review" | "verified_auto" | "verified_manual" | "revoked")}>
+              <option value="all">all</option>
+              <option value="pending_review">pending_review</option>
+              <option value="verified_auto">verified_auto</option>
+              <option value="verified_manual">verified_manual</option>
+              <option value="revoked">revoked</option>
+            </select>
+          </label>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
           <thead>
             <tr style={{ background: "#f6f6f6" }}>
               <th style={{ textAlign: "left", padding: 8 }}>Submitted</th>
@@ -306,7 +331,7 @@ export default function AirdropPage() {
             </tr>
           </thead>
           <tbody>
-            {submissions.map((s) => (
+            {filteredSubmissions.map((s) => (
               <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
                 <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
                 <td style={{ padding: 8 }}>
@@ -314,11 +339,13 @@ export default function AirdropPage() {
                   {s.task_code && <code>{s.task_code}</code>}
                 </td>
                 <td style={{ padding: 8 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
-                <td style={{ padding: 8 }}>{s.state}</td>
+                <td style={{ padding: 8 }}>
+                  <span style={{ ...stateBadgeStyle(s.state), padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>{s.state}</span>
+                </td>
                 <td style={{ padding: 8 }}>{s.notes || "-"}</td>
               </tr>
             ))}
-            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No submissions loaded yet.</td></tr>}
+            {filteredSubmissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No submissions for selected filter.</td></tr>}
           </tbody>
         </table>
       </section>

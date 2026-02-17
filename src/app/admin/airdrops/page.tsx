@@ -37,6 +37,13 @@ type Submission = {
   notes?: string | null;
 };
 
+function stateBadgeStyle(state: string) {
+  if (state === "pending_review") return { background: "#fff7e6", color: "#8a5a00" };
+  if (state === "verified_auto" || state === "verified_manual") return { background: "#eafbea", color: "#1f6b2a" };
+  if (state === "revoked") return { background: "#fff2f2", color: "#8a1f1f" };
+  return { background: "#f2f2f2", color: "#444" };
+}
+
 export default function AdminAirdropsPage() {
   const [token, setToken] = useState("");
   const [rows, setRows] = useState<Campaign[]>([]);
@@ -46,6 +53,7 @@ export default function AdminAirdropsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
+  const [submissionStateFilter, setSubmissionStateFilter] = useState<"pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all">("pending_review");
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -86,12 +94,12 @@ export default function AdminAirdropsPage() {
     if (res.ok && data.ok) setTasks(data.tasks || []);
   }
 
-  async function loadSubmissions(campaignId?: string, useToken?: string) {
+  async function loadSubmissions(campaignId?: string, useToken?: string, stateFilter?: string) {
     const t = (useToken ?? token).trim();
     const cid = campaignId || selectedCampaignId;
     if (!t) return;
     const q = new URLSearchParams();
-    q.set("state", "pending_review");
+    q.set("state", stateFilter || submissionStateFilter);
     if (cid) q.set("campaign_id", cid);
     const res = await fetch(`/api/admin/airdrop/submissions?${q.toString()}`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
     const data = await res.json();
@@ -186,9 +194,9 @@ export default function AdminAirdropsPage() {
   useEffect(() => {
     if (!selectedCampaignId) return;
     loadTasks(selectedCampaignId);
-    loadSubmissions(selectedCampaignId);
+    loadSubmissions(selectedCampaignId, undefined, submissionStateFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCampaignId]);
+  }, [selectedCampaignId, submissionStateFilter]);
 
   return (
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
@@ -268,8 +276,20 @@ export default function AdminAirdropsPage() {
       </div>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Manual Review Queue (pending_review)</h3>
-        <button onClick={() => loadSubmissions()} disabled={loading}>Refresh Queue</button>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <h3 style={{ marginTop: 0, marginBottom: 0 }}>Submission Queue</h3>
+          <label style={{ fontSize: 13 }}>
+            Filter state{" "}
+            <select value={submissionStateFilter} onChange={(e) => setSubmissionStateFilter(e.target.value as "pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all")}>
+              <option value="pending_review">pending_review</option>
+              <option value="verified_auto">verified_auto</option>
+              <option value="verified_manual">verified_manual</option>
+              <option value="revoked">revoked</option>
+              <option value="all">all</option>
+            </select>
+          </label>
+        </div>
+        <button onClick={() => loadSubmissions()} disabled={loading} style={{ marginTop: 8 }}>Refresh Queue</button>
         {adminActionMessage && <p style={{ marginTop: 8, color: "green" }}>{adminActionMessage}</p>}
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
@@ -288,14 +308,16 @@ export default function AdminAirdropsPage() {
                 <td style={{ padding: 8 }}><code>{s.wallet_address.slice(0, 10)}…</code></td>
                 <td style={{ padding: 8 }}>{s.handle || "-"}</td>
                 <td style={{ padding: 8 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
-                <td style={{ padding: 8 }}>{s.state}</td>
+                <td style={{ padding: 8 }}>
+                  <span style={{ ...stateBadgeStyle(s.state), padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>{s.state}</span>
+                </td>
                 <td style={{ padding: 8, display: "flex", gap: 6 }}>
-                  <button onClick={() => reviewSubmission(s.id, "approve")} disabled={loading}>Approve</button>
-                  <button onClick={() => reviewSubmission(s.id, "reject")} disabled={loading}>Reject</button>
+                  <button onClick={() => reviewSubmission(s.id, "approve")} disabled={loading || s.state !== "pending_review"}>Approve</button>
+                  <button onClick={() => reviewSubmission(s.id, "reject")} disabled={loading || s.state !== "pending_review"}>Reject</button>
                 </td>
               </tr>
             ))}
-            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No pending submissions.</td></tr>}
+            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No submissions for selected filter.</td></tr>}
           </tbody>
         </table>
       </div>
