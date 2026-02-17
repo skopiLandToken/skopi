@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type Touch = {
 source?: string | null;
@@ -33,12 +33,32 @@ return null;
 }
 }
 
+function humanUsdc(amountAtomic: number) {
+return (amountAtomic / 1_000_000).toFixed(6).replace(/\.?0+$/, "");
+}
+
+function buildSolanaPayUrl(intent: Intent) {
+const amount = humanUsdc(intent.amount_usdc_atomic);
+const recipient = intent.treasury_address;
+const params = new URLSearchParams({
+amount,
+"spl-token": intent.usdc_mint,
+reference: intent.reference_pubkey,
+label: "SKOpi Purchase",
+message: `Intent ${intent.id}`,
+});
+
+return `solana:${recipient}?${params.toString()}`;
+}
+
 export default function BuyPage() {
 const [amount, setAmount] = useState("25");
 const [walletAddress, setWalletAddress] = useState("");
 const [loading, setLoading] = useState(false);
 const [error, setError] = useState<string | null>(null);
 const [intent, setIntent] = useState<Intent | null>(null);
+
+const payUrl = useMemo(() => (intent ? buildSolanaPayUrl(intent) : ""), [intent]);
 
 async function createIntent() {
 setLoading(true);
@@ -97,11 +117,20 @@ setError(e?.message || "Something went wrong");
 setLoading(false);
 }
 }
+
+async function copyText(text: string, label: string) {
+try {
+await navigator.clipboard.writeText(text);
+alert(`${label} copied`);
+} catch {
+alert(`Could not copy ${label}`);
+}
+}
 return (
-<main style={{ maxWidth: 760, margin: "40px auto", padding: "0 16px" }}>
+<main style={{ maxWidth: 820, margin: "40px auto", padding: "0 16px" }}>
 <h1 style={{ fontSize: 32, marginBottom: 8 }}>Buy SKOpi (USDC)</h1>
 <p style={{ opacity: 0.8, marginBottom: 24 }}>
-Enter amount, create intent, then pay exact USDC amount on Solana.
+Create an intent, then pay exact USDC on Solana using the generated payment details.
 </p>
 
 <div
@@ -188,12 +217,37 @@ padding: 16,
 <h2 style={{ marginTop: 0 }}>Intent Created ✅</h2>
 <p><strong>Intent ID:</strong> {intent.id}</p>
 <p><strong>Status:</strong> {intent.status}</p>
-<p><strong>Amount (atomic):</strong> {intent.amount_usdc_atomic}</p>
+<p><strong>Amount:</strong> {humanUsdc(intent.amount_usdc_atomic)} USDC</p>
 <p><strong>Treasury:</strong> {intent.treasury_address}</p>
 <p><strong>USDC Mint:</strong> {intent.usdc_mint}</p>
 <p><strong>Reference:</strong> {intent.reference_pubkey}</p>
-<p style={{ marginBottom: 0 }}>
-Next step: we’ll generate a Solana Pay link/QR from this intent.
+
+<div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+<button onClick={() => copyText(intent.treasury_address, "Treasury address")}>
+Copy Treasury
+</button>
+<button onClick={() => copyText(intent.reference_pubkey, "Reference")}>
+Copy Reference
+</button>
+<button onClick={() => copyText(payUrl, "Payment URL")}>
+Copy Payment URL
+</button>
+<a
+href={payUrl}
+style={{
+padding: "6px 10px",
+border: "1px solid #222",
+borderRadius: 6,
+textDecoration: "none",
+}}
+>
+Open in Wallet
+</a>
+</div>
+
+<p style={{ marginTop: 14, marginBottom: 0 }}>
+⚠️ Send the <strong>exact USDC amount</strong> using this intent reference.
+Payment confirmation checker comes next.
 </p>
 </div>
 )}
