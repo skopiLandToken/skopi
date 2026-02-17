@@ -102,32 +102,16 @@ export default function AirdropPage() {
   const [error, setError] = useState<string | null>(null);
   const [submissionFilter, setSubmissionFilter] = useState<"all" | "pending_review" | "verified_auto" | "verified_manual" | "revoked">("all");
 
-  const selectedCampaign = useMemo(
-    () => campaigns.find((c) => c.id === campaignId) || null,
-    [campaigns, campaignId]
-  );
-
-  const selectedTask = useMemo(
-    () => tasks.find((t) => t.code === taskCode) || null,
-    [tasks, taskCode]
-  );
-
+  const selectedCampaign = useMemo(() => campaigns.find((c) => c.id === campaignId) || null, [campaigns, campaignId]);
+  const selectedTask = useMemo(() => tasks.find((t) => t.code === taskCode) || null, [tasks, taskCode]);
   const filteredSubmissions = useMemo(
     () => (submissionFilter === "all" ? submissions : submissions.filter((s) => s.state === submissionFilter)),
     [submissions, submissionFilter]
   );
 
   const submissionCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: submissions.length,
-      pending_review: 0,
-      verified_auto: 0,
-      verified_manual: 0,
-      revoked: 0,
-    };
-    for (const s of submissions) {
-      counts[s.state] = (counts[s.state] || 0) + 1;
-    }
+    const counts: Record<string, number> = { all: submissions.length, pending_review: 0, verified_auto: 0, verified_manual: 0, revoked: 0 };
+    for (const s of submissions) counts[s.state] = (counts[s.state] || 0) + 1;
     return counts;
   }, [submissions]);
 
@@ -140,8 +124,7 @@ export default function AirdropPage() {
       setCampaigns(rows);
       if (!campaignId && rows.length > 0) setCampaignId(rows[0].id);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load campaigns";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to load campaigns");
     }
   }
 
@@ -157,8 +140,7 @@ export default function AirdropPage() {
       if (rows.length > 0) setTaskCode(rows[0].code);
       else setTaskCode("");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load tasks";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to load tasks");
       setTasks([]);
     }
   }
@@ -172,8 +154,7 @@ export default function AirdropPage() {
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load allocations");
       setAllocations(data.allocations || []);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load allocations";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to load allocations");
       setAllocations([]);
     }
   }
@@ -189,8 +170,7 @@ export default function AirdropPage() {
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load submissions");
       setSubmissions(data.submissions || []);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load submissions";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to load submissions");
       setSubmissions([]);
     }
   }
@@ -199,7 +179,6 @@ export default function AirdropPage() {
     setLoading(true);
     setResult(null);
     setError(null);
-
     try {
       if (!campaignId) throw new Error("Select campaign");
       if (!taskCode) throw new Error("Select task");
@@ -209,37 +188,25 @@ export default function AirdropPage() {
       const res = await fetch("/api/airdrop/submit-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campaign_id: campaignId,
-          task_code: taskCode,
-          wallet_address: wallet.trim(),
-          handle: handle.trim() || null,
-          evidence_url: evidenceUrl.trim(),
-        }),
+        body: JSON.stringify({ campaign_id: campaignId, task_code: taskCode, wallet_address: wallet.trim(), handle: handle.trim() || null, evidence_url: evidenceUrl.trim() }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const raw = String(data?.error || "submission_failed");
-        const normalized = raw.trim().toLowerCase().replace(/\s+/g, "_");
-        throw new Error(humanizeSubmissionError(normalized));
+        throw new Error(humanizeSubmissionError(raw.trim().toLowerCase().replace(/\s+/g, "_")));
       }
 
       const alloc = data?.allocation;
-      if (alloc?.ok) {
-        setResult({ ok: true, message: `Submission accepted and allocated. Remaining pool: ${fmt(alloc.remaining_tokens)}` });
-      } else if (data?.message) {
-        setResult({ ok: true, message: data.message });
-      } else {
-        setResult({ ok: true, message: "Submission accepted." });
-      }
+      if (alloc?.ok) setResult({ ok: true, message: `Submission accepted and allocated. Remaining pool: ${fmt(alloc.remaining_tokens)}` });
+      else setResult({ ok: true, message: data?.message || "Submission accepted." });
 
       await loadCampaigns();
       await loadAllocations(wallet.trim());
       await loadSubmissions(wallet.trim());
+      setEvidenceUrl("");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Submission failed";
-      setResult({ ok: false, message: msg });
+      setResult({ ok: false, message: e instanceof Error ? e.message : "Submission failed" });
     } finally {
       setLoading(false);
     }
@@ -256,106 +223,67 @@ export default function AirdropPage() {
   }, [campaignId]);
 
   return (
-    <main style={{ maxWidth: 1000, margin: "30px auto", padding: "0 16px" }}>
-      <h1>SKOpi Airdrop (V2)</h1>
-      <p style={{ opacity: 0.8 }}>Submit task proof via URL. Auto tasks allocate instantly; manual tasks go to review.</p>
+    <main style={{ maxWidth: 1080, margin: "28px auto", padding: "0 16px 36px", fontFamily: "Inter, system-ui, sans-serif", color: "#111" }}>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ marginBottom: 6 }}>SKOpi Airdrop (V2)</h1>
+        <p style={{ opacity: 0.75, margin: 0 }}>Submit task proof via URL. Auto tasks allocate instantly; manual tasks go to review.</p>
+      </div>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Active Campaigns</h3>
-        <button onClick={loadCampaigns}>Refresh Campaigns</button>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10, fontSize: 14 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Name</th><th style={{ textAlign: "left", padding: 8 }}>Pool</th><th style={{ textAlign: "left", padding: 8 }}>Distributed</th><th style={{ textAlign: "left", padding: 8 }}>Remaining</th></tr></thead>
-          <tbody>
-            {campaigns.map((c) => <tr key={c.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}>{c.name}</td><td style={{ padding: 8 }}>{fmt(c.pool_tokens)}</td><td style={{ padding: 8 }}>{fmt(c.distributed_tokens)}</td><td style={{ padding: 8 }}>{fmt(c.remaining_tokens)}</td></tr>)}
-            {campaigns.length === 0 && <tr><td style={{ padding: 8 }} colSpan={4}>No active campaigns.</td></tr>}
-          </tbody>
-        </table>
+      <section style={{ border: "1px solid #e8e8e8", borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+          <h3 style={{ margin: 0 }}>Active Campaigns</h3>
+          <button onClick={loadCampaigns}>Refresh</button>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead><tr style={{ background: "#f8fafc" }}><th style={{ textAlign: "left", padding: 10 }}>Name</th><th style={{ textAlign: "left", padding: 10 }}>Pool</th><th style={{ textAlign: "left", padding: 10 }}>Distributed</th><th style={{ textAlign: "left", padding: 10 }}>Remaining</th></tr></thead>
+            <tbody>
+              {campaigns.map((c) => <tr key={c.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 10 }}>{c.name}</td><td style={{ padding: 10 }}>{fmt(c.pool_tokens)}</td><td style={{ padding: 10 }}>{fmt(c.distributed_tokens)}</td><td style={{ padding: 10 }}><strong>{fmt(c.remaining_tokens)}</strong></td></tr>)}
+              {campaigns.length === 0 && <tr><td style={{ padding: 10 }} colSpan={4}>No active campaigns.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+      <section style={{ border: "1px solid #e8e8e8", borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
         <h3 style={{ marginTop: 0 }}>Submit Task Evidence</h3>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Campaign</span>
-            <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">Select campaign</option>
-              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Task</span>
-            <select value={taskCode} onChange={(e) => setTaskCode(e.target.value)}>
-              <option value="">Select task</option>
-              {tasks.map((t) => <option key={t.id} value={t.code}>{t.title} ({fmt(t.bounty_tokens)} SKOpi) {t.requires_manual ? "· manual" : "· auto"}</option>)}
-            </select>
-          </label>
-
-          <label style={{ display: "grid", gap: 4, gridColumn: "1 / span 2" }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Wallet Address</span>
-            <input value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="Solana wallet" />
-          </label>
-
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Social Handle (optional)</span>
-            <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@username" />
-          </label>
-
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Evidence URL</span>
-            <input value={evidenceUrl} onChange={(e) => setEvidenceUrl(e.target.value)} placeholder="https://..." />
-          </label>
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+          <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 12, opacity: 0.75 }}>Campaign</span><select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Select campaign</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 12, opacity: 0.75 }}>Task</span><select value={taskCode} onChange={(e) => setTaskCode(e.target.value)}><option value="">Select task</option>{tasks.map((t) => <option key={t.id} value={t.code}>{t.title} ({fmt(t.bounty_tokens)} SKOpi) {t.requires_manual ? "· manual" : "· auto"}</option>)}</select></label>
+          <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 12, opacity: 0.75 }}>Wallet Address</span><input value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="Solana wallet" /></label>
+          <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 12, opacity: 0.75 }}>Social Handle (optional)</span><input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@username" /></label>
+          <label style={{ display: "grid", gap: 4, gridColumn: "1 / -1" }}><span style={{ fontSize: 12, opacity: 0.75 }}>Evidence URL</span><input value={evidenceUrl} onChange={(e) => setEvidenceUrl(e.target.value)} placeholder="https://..." /></label>
         </div>
 
-        {selectedTask && (
-          <p style={{ marginTop: 8, opacity: 0.8 }}>
-            Selected task: <strong>{selectedTask.title}</strong> · Bounty: <strong>{fmt(selectedTask.bounty_tokens)} SKOpi</strong> · Mode: <strong>{selectedTask.requires_manual ? "Manual review" : "Auto"}</strong>
-          </p>
-        )}
+        {selectedTask && <p style={{ marginTop: 10, opacity: 0.82, fontSize: 14 }}>Task: <strong>{selectedTask.title}</strong> · Bounty: <strong>{fmt(selectedTask.bounty_tokens)} SKOpi</strong> · Mode: <strong>{selectedTask.requires_manual ? "Manual review" : "Auto"}</strong></p>}
+        {selectedCampaign && <p style={{ marginTop: 4, opacity: 0.82, fontSize: 14 }}>Campaign remaining: <strong>{fmt(selectedCampaign.remaining_tokens)}</strong></p>}
 
-        {selectedCampaign && (
-          <p style={{ marginTop: 4, opacity: 0.8 }}>
-            Campaign remaining: <strong>{fmt(selectedCampaign.remaining_tokens)}</strong>
-          </p>
-        )}
-
-        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={submitTask} disabled={loading}>{loading ? "Submitting..." : "Submit Evidence"}</button>
           <button onClick={() => loadAllocations()} disabled={!wallet.trim()}>Load My Allocations</button>
           <button onClick={() => loadSubmissions()} disabled={!wallet.trim()}>Load My Submissions</button>
         </div>
 
-        {result && (
-          <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: result.ok ? "#eafbea" : "#fff2f2" }}>
-            {result.ok ? "✅ " : "❌ "}{result.message}
-          </div>
-        )}
+        {result && <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: result.ok ? "#ecfdf3" : "#fef2f2", border: `1px solid ${result.ok ? "#b7f0cd" : "#fecaca"}` }}>{result.ok ? "✅ " : "❌ "}{result.message}</div>}
       </section>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+      <section style={{ border: "1px solid #e8e8e8", borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
         <h3 style={{ marginTop: 0 }}>My Allocations</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Created</th><th style={{ textAlign: "left", padding: 8 }}>Campaign</th><th style={{ textAlign: "left", padding: 8 }}>Total</th><th style={{ textAlign: "left", padding: 8 }}>Locked</th><th style={{ textAlign: "left", padding: 8 }}>Claimable</th><th style={{ textAlign: "left", padding: 8 }}>Status</th></tr></thead>
-          <tbody>
-            {allocations.map((a) => <tr key={a.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}>{new Date(a.created_at).toLocaleString()}</td><td style={{ padding: 8 }}><code>{a.campaign_id.slice(0, 8)}…</code></td><td style={{ padding: 8 }}>{fmt(a.total_tokens)}</td><td style={{ padding: 8 }}>{fmt(a.locked_tokens)}</td><td style={{ padding: 8 }}>{fmt(a.claimable_tokens)}</td><td style={{ padding: 8 }}>{a.status}</td></tr>)}
-            {allocations.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No allocations loaded yet.</td></tr>}
-          </tbody>
-        </table>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead><tr style={{ background: "#f8fafc" }}><th style={{ textAlign: "left", padding: 10 }}>Created</th><th style={{ textAlign: "left", padding: 10 }}>Campaign</th><th style={{ textAlign: "left", padding: 10 }}>Total</th><th style={{ textAlign: "left", padding: 10 }}>Locked</th><th style={{ textAlign: "left", padding: 10 }}>Claimable</th><th style={{ textAlign: "left", padding: 10 }}>Status</th></tr></thead>
+            <tbody>
+              {allocations.map((a) => <tr key={a.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 10 }}>{new Date(a.created_at).toLocaleString()}</td><td style={{ padding: 10 }}><code>{a.campaign_id.slice(0, 8)}…</code></td><td style={{ padding: 10 }}>{fmt(a.total_tokens)}</td><td style={{ padding: 10 }}>{fmt(a.locked_tokens)}</td><td style={{ padding: 10 }}>{fmt(a.claimable_tokens)}</td><td style={{ padding: 10 }}>{a.status}</td></tr>)}
+              {allocations.length === 0 && <tr><td style={{ padding: 10 }} colSpan={6}>No allocations loaded yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+      <section style={{ border: "1px solid #e8e8e8", borderRadius: 14, padding: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <h3 style={{ marginTop: 0, marginBottom: 0 }}>My Submissions</h3>
-          <label style={{ fontSize: 13 }}>
-            Filter state{" "}
-            <select value={submissionFilter} onChange={(e) => setSubmissionFilter(e.target.value as "all" | "pending_review" | "verified_auto" | "verified_manual" | "revoked")}>
-              <option value="all">all</option>
-              <option value="pending_review">pending_review</option>
-              <option value="verified_auto">verified_auto</option>
-              <option value="verified_manual">verified_manual</option>
-              <option value="revoked">revoked</option>
-            </select>
-          </label>
+          <h3 style={{ margin: 0 }}>My Submissions</h3>
+          <label style={{ fontSize: 13 }}>Filter state <select value={submissionFilter} onChange={(e) => setSubmissionFilter(e.target.value as "all" | "pending_review" | "verified_auto" | "verified_manual" | "revoked")}><option value="all">all</option><option value="pending_review">pending_review</option><option value="verified_auto">verified_auto</option><option value="verified_manual">verified_manual</option><option value="revoked">revoked</option></select></label>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
           <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f2f2" }}>all: {submissionCounts.all}</span>
@@ -364,34 +292,23 @@ export default function AirdropPage() {
           <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_manual") }}>manual: {submissionCounts.verified_manual || 0}</span>
           <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("revoked") }}>revoked: {submissionCounts.revoked || 0}</span>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
-          <thead>
-            <tr style={{ background: "#f6f6f6" }}>
-              <th style={{ textAlign: "left", padding: 8 }}>Submitted</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Task</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Evidence</th>
-              <th style={{ textAlign: "left", padding: 8 }}>State</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSubmissions.map((s) => (
-              <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
-                <td style={{ padding: 8 }}>
-                  <div>{s.task_title || s.task_code || s.task_id}</div>
-                  {s.task_code && <code>{s.task_code}</code>}
-                </td>
-                <td style={{ padding: 8 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
-                <td style={{ padding: 8 }}>
-                  <span style={{ ...stateBadgeStyle(s.state), padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>{s.state}</span>
-                </td>
-                <td style={{ padding: 8 }}>{s.notes || "-"}</td>
-              </tr>
-            ))}
-            {filteredSubmissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No submissions for selected filter.</td></tr>}
-          </tbody>
-        </table>
+        <div style={{ overflowX: "auto", marginTop: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead><tr style={{ background: "#f8fafc" }}><th style={{ textAlign: "left", padding: 10 }}>Submitted</th><th style={{ textAlign: "left", padding: 10 }}>Task</th><th style={{ textAlign: "left", padding: 10 }}>Evidence</th><th style={{ textAlign: "left", padding: 10 }}>State</th><th style={{ textAlign: "left", padding: 10 }}>Notes</th></tr></thead>
+            <tbody>
+              {filteredSubmissions.map((s) => (
+                <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
+                  <td style={{ padding: 10 }}>{new Date(s.submitted_at).toLocaleString()}</td>
+                  <td style={{ padding: 10 }}><div>{s.task_title || s.task_code || s.task_id}</div>{s.task_code && <code>{s.task_code}</code>}</td>
+                  <td style={{ padding: 10 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
+                  <td style={{ padding: 10 }}><span style={{ ...stateBadgeStyle(s.state), padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>{s.state}</span></td>
+                  <td style={{ padding: 10 }}>{s.notes || "-"}</td>
+                </tr>
+              ))}
+              {filteredSubmissions.length === 0 && <tr><td style={{ padding: 10 }} colSpan={5}>No submissions for selected filter.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {error && <p style={{ color: "crimson", marginTop: 10 }}>{error}</p>}
