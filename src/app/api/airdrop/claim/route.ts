@@ -12,15 +12,14 @@ export async function POST(req: Request) {
     const campaignId = String(body?.campaign_id || "").trim();
     const wallet = String(body?.wallet_address || "").trim();
     const amount = Number(body?.amount_tokens || 0);
+    const userId = body?.user_id ? String(body.user_id) : null;
 
     if (!campaignId) {
       return NextResponse.json({ ok: false, error: "campaign_id is required" }, { status: 400 });
     }
-
-    if (!wallet || wallet.length < 20) {
-      return NextResponse.json({ ok: false, error: "wallet_address is invalid" }, { status: 400 });
+    if (!wallet) {
+      return NextResponse.json({ ok: false, error: "wallet_address is required" }, { status: 400 });
     }
-
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ ok: false, error: "amount_tokens must be > 0" }, { status: 400 });
     }
@@ -29,7 +28,7 @@ export async function POST(req: Request) {
       p_campaign_id: campaignId,
       p_wallet: wallet,
       p_amount: amount,
-      p_user_id: null,
+      p_user_id: userId,
     });
 
     if (error) {
@@ -37,6 +36,7 @@ export async function POST(req: Request) {
     }
 
     const row = Array.isArray(data) ? data[0] : data;
+
     if (!row) {
       return NextResponse.json({ ok: false, error: "No response from claim function" }, { status: 500 });
     }
@@ -46,8 +46,8 @@ export async function POST(req: Request) {
         {
           ok: false,
           error: row.error || "claim_failed",
-          allocation_id: row.allocation_id,
-          remaining_tokens: row.remaining_tokens,
+          remaining_tokens: row.remaining_tokens ?? null,
+          allocation_id: row.allocation_id ?? null,
         },
         { status: 400 }
       );
