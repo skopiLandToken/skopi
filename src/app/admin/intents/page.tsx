@@ -21,39 +21,71 @@ function humanUsdc(amountAtomic: number) {
 
 export default function AdminIntentsPage() {
   const [rows, setRows] = useState<Intent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState("");
 
-  async function load() {
+  async function load(useToken?: string) {
+    const t = (useToken ?? token).trim();
+    if (!t) {
+      setError("Enter admin token first");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/intents", { cache: "no-store" });
+      const res = await fetch("/api/admin/intents", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${t}`,
+        },
+      });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load intents");
       setRows(data.intents || []);
+      localStorage.setItem("skopi_admin_token", t);
     } catch (e: any) {
       setError(e?.message || "Failed to load intents");
+      setRows([]);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    const saved = localStorage.getItem("skopi_admin_token") || "";
+    if (saved) {
+      setToken(saved);
+      load(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
       <h1>Admin · Purchase Intents</h1>
-      <p style={{ opacity: 0.75 }}>Temporary admin view (add auth guard next).</p>
+      <p style={{ opacity: 0.75 }}>Token-protected admin view.</p>
 
-      <button onClick={load} style={{ marginBottom: 12 }}>Refresh</button>
+      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+        <label style={{ display: "block", marginBottom: 8 }}>Admin Token</label>
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Enter ADMIN_READ_TOKEN"
+          style={{ width: "100%", maxWidth: 500, padding: 8, marginBottom: 8 }}
+        />
+        <div>
+          <button onClick={() => load()} disabled={loading}>
+            {loading ? "Loading..." : "Unlock / Refresh"}
+          </button>
+        </div>
+      </div>
 
-      {loading && <p>Loading...</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
 
-      {!loading && !error && (
+      {!loading && !error && rows.length > 0 && (
         <div style={{ overflowX: "auto", border: "1px solid #ddd", borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
