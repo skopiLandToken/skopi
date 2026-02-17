@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("airdrop_campaigns")
-      .select("id,name,description,status,start_at,end_at,lock_days,pool_tokens,per_user_cap,created_at,updated_at")
+      .select("id,name,description,status,start_at,end_at,lock_days,pool_tokens,distributed_tokens,per_user_cap,created_at,updated_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -56,12 +56,13 @@ export async function POST(req: Request) {
       lock_days: Number(body?.lock_days || 90),
       pool_tokens: body?.pool_tokens ?? null,
       per_user_cap: body?.per_user_cap ?? null,
+      distributed_tokens: 0,
     };
 
     const { data, error } = await supabase
       .from("airdrop_campaigns")
       .insert(insert)
-      .select("id,name,status,lock_days,created_at")
+      .select("id,name,status,lock_days,pool_tokens,distributed_tokens,created_at")
       .single();
 
     if (error) {

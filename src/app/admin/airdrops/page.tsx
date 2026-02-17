@@ -11,6 +11,7 @@ type Campaign = {
   end_at?: string | null;
   lock_days: number;
   pool_tokens?: string | null;
+  distributed_tokens?: string | null;
   per_user_cap?: string | null;
   created_at: string;
 };
@@ -105,9 +106,9 @@ export default function AdminAirdropsPage() {
   }, []);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
+    <main style={{ maxWidth: 1200, margin: "30px auto", padding: "0 16px" }}>
       <h1>Admin · Airdrop Campaigns (V2)</h1>
-      <p style={{ opacity: 0.75 }}>Create and manage airdrop campaigns.</p>
+      <p style={{ opacity: 0.75 }}>FCFS pool-limited campaigns with lock period.</p>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <label style={{ display: "block", marginBottom: 8 }}>Admin Token</label>
@@ -133,7 +134,7 @@ export default function AdminAirdropsPage() {
             <option value="archived">archived</option>
           </select>
           <input value={lockDays} onChange={(e) => setLockDays(e.target.value)} placeholder="Lock days (default 90)" />
-          <input value={poolTokens} onChange={(e) => setPoolTokens(e.target.value)} placeholder="Pool tokens (optional)" />
+          <input value={poolTokens} onChange={(e) => setPoolTokens(e.target.value)} placeholder="Pool tokens (required for FCFS)" />
           <input value={capPerUser} onChange={(e) => setCapPerUser(e.target.value)} placeholder="Per-user cap (optional)" />
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" />
         </div>
@@ -153,22 +154,31 @@ export default function AdminAirdropsPage() {
               <th style={{ textAlign: "left", padding: 8 }}>Status</th>
               <th style={{ textAlign: "left", padding: 8 }}>Lock (days)</th>
               <th style={{ textAlign: "left", padding: 8 }}>Pool</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Distributed</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Remaining</th>
               <th style={{ textAlign: "left", padding: 8 }}>Per-user cap</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>{new Date(r.created_at).toLocaleString()}</td>
-                <td style={{ padding: 8 }}>{r.name}</td>
-                <td style={{ padding: 8 }}>{r.status}</td>
-                <td style={{ padding: 8 }}>{r.lock_days}</td>
-                <td style={{ padding: 8 }}>{r.pool_tokens || "-"}</td>
-                <td style={{ padding: 8 }}>{r.per_user_cap || "-"}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const pool = r.pool_tokens ? Number(r.pool_tokens) : 0;
+              const dist = r.distributed_tokens ? Number(r.distributed_tokens) : 0;
+              const remaining = Math.max(pool - dist, 0);
+              return (
+                <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
+                  <td style={{ padding: 8 }}>{new Date(r.created_at).toLocaleString()}</td>
+                  <td style={{ padding: 8 }}>{r.name}</td>
+                  <td style={{ padding: 8 }}>{r.status}</td>
+                  <td style={{ padding: 8 }}>{r.lock_days}</td>
+                  <td style={{ padding: 8 }}>{r.pool_tokens || "-"}</td>
+                  <td style={{ padding: 8 }}>{r.distributed_tokens || "0"}</td>
+                  <td style={{ padding: 8 }}>{r.pool_tokens ? remaining.toFixed(6) : "-"}</td>
+                  <td style={{ padding: 8 }}>{r.per_user_cap || "-"}</td>
+                </tr>
+              );
+            })}
             {rows.length === 0 && (
-              <tr><td style={{ padding: 8 }} colSpan={6}>No campaigns yet.</td></tr>
+              <tr><td style={{ padding: 8 }} colSpan={8}>No campaigns yet.</td></tr>
             )}
           </tbody>
         </table>
