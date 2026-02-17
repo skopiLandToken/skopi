@@ -330,6 +330,27 @@ export default function AdminAirdropsPage() {
     finally { setLoading(false); }
   }
 
+  async function toggleTaskActive(task: Task) {
+    const t = token.trim();
+    if (!t) return setError("Enter admin token first");
+
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch("/api/admin/airdrop/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ task_id: task.id, active: !task.active }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to toggle task");
+      await loadTasks(selectedCampaignId, t);
+    } catch (e: any) {
+      setError(e?.message || "Failed to toggle task");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
     await applySubmissionAction(action, [submissionId]);
   }
@@ -443,10 +464,10 @@ export default function AdminAirdropsPage() {
         </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Code</th><th style={{ textAlign: "left", padding: 8 }}>Title</th><th style={{ textAlign: "left", padding: 8 }}>Bounty</th><th style={{ textAlign: "left", padding: 8 }}>Manual?</th><th style={{ textAlign: "left", padding: 8 }}>Rules</th><th style={{ textAlign: "left", padding: 8 }}>Actions</th></tr></thead>
+          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Code</th><th style={{ textAlign: "left", padding: 8 }}>Title</th><th style={{ textAlign: "left", padding: 8 }}>Bounty</th><th style={{ textAlign: "left", padding: 8 }}>Manual?</th><th style={{ textAlign: "left", padding: 8 }}>Active</th><th style={{ textAlign: "left", padding: 8 }}>Rules</th><th style={{ textAlign: "left", padding: 8 }}>Actions</th></tr></thead>
           <tbody>
-            {tasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}><code>{t.code}</code></td><td style={{ padding: 8 }}>{t.title}</td><td style={{ padding: 8 }}>{t.bounty_tokens}</td><td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td><td style={{ padding: 8, fontSize: 12 }}>{t.requires_https === false ? "http/https" : "https only"} · min:{t.min_evidence_length ?? 10} · domains:{t.allowed_domains?.length ? t.allowed_domains.join("|") : "any"}</td><td style={{ padding: 8, display: "flex", gap: 6 }}><button onClick={() => startEditTask(t)} disabled={loading}>Edit</button></td></tr>)}
-            {tasks.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No tasks for selected campaign.</td></tr>}
+            {tasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}><code>{t.code}</code></td><td style={{ padding: 8 }}>{t.title}</td><td style={{ padding: 8 }}>{t.bounty_tokens}</td><td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td><td style={{ padding: 8 }}>{t.active ? "yes" : "no"}</td><td style={{ padding: 8, fontSize: 12 }}>{t.requires_https === false ? "http/https" : "https only"} · min:{t.min_evidence_length ?? 10} · domains:{t.allowed_domains?.length ? t.allowed_domains.join("|") : "any"}</td><td style={{ padding: 8, display: "flex", gap: 6 }}><button onClick={() => startEditTask(t)} disabled={loading}>Edit</button><button onClick={() => toggleTaskActive(t)} disabled={loading}>{t.active ? "Disable" : "Enable"}</button></td></tr>)}
+            {tasks.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No tasks for selected campaign.</td></tr>}
           </tbody>
         </table>
       </div>
