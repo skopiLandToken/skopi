@@ -34,6 +34,22 @@ type Allocation = {
   created_at: string;
 };
 
+type Submission = {
+  id: string;
+  campaign_id: string;
+  task_id: string;
+  task_code?: string | null;
+  task_title?: string | null;
+  wallet_address: string;
+  handle?: string | null;
+  evidence_url: string;
+  state: string;
+  notes?: string | null;
+  reviewer?: string | null;
+  reviewed_at?: string | null;
+  submitted_at: string;
+};
+
 function fmt(v: string | number | null | undefined) {
   if (v == null) return "-";
   const n = Number(v);
@@ -45,6 +61,7 @@ export default function AirdropPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
 
   const [campaignId, setCampaignId] = useState("");
   const [taskCode, setTaskCode] = useState("");
@@ -113,6 +130,23 @@ export default function AirdropPage() {
     }
   }
 
+  async function loadSubmissions(walletAddress?: string) {
+    const w = (walletAddress ?? wallet).trim();
+    if (!w) return;
+    try {
+      const query = new URLSearchParams({ wallet_address: w });
+      if (campaignId) query.set("campaign_id", campaignId);
+      const res = await fetch(`/api/airdrop/submissions?${query.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load submissions");
+      setSubmissions(data.submissions || []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load submissions";
+      setError(msg);
+      setSubmissions([]);
+    }
+  }
+
   async function submitTask() {
     setLoading(true);
     setResult(null);
@@ -152,6 +186,7 @@ export default function AirdropPage() {
 
       await loadCampaigns();
       await loadAllocations(wallet.trim());
+      await loadSubmissions(wallet.trim());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Submission failed";
       setResult({ ok: false, message: msg });
@@ -234,9 +269,10 @@ export default function AirdropPage() {
           </p>
         )}
 
-        <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={submitTask} disabled={loading}>{loading ? "Submitting..." : "Submit Evidence"}</button>
           <button onClick={() => loadAllocations()} disabled={!wallet.trim()}>Load My Allocations</button>
+          <button onClick={() => loadSubmissions()} disabled={!wallet.trim()}>Load My Submissions</button>
         </div>
 
         {result && (
@@ -246,13 +282,43 @@ export default function AirdropPage() {
         )}
       </section>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0 }}>My Allocations</h3>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Created</th><th style={{ textAlign: "left", padding: 8 }}>Campaign</th><th style={{ textAlign: "left", padding: 8 }}>Total</th><th style={{ textAlign: "left", padding: 8 }}>Locked</th><th style={{ textAlign: "left", padding: 8 }}>Claimable</th><th style={{ textAlign: "left", padding: 8 }}>Status</th></tr></thead>
           <tbody>
             {allocations.map((a) => <tr key={a.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}>{new Date(a.created_at).toLocaleString()}</td><td style={{ padding: 8 }}><code>{a.campaign_id.slice(0, 8)}…</code></td><td style={{ padding: 8 }}>{fmt(a.total_tokens)}</td><td style={{ padding: 8 }}>{fmt(a.locked_tokens)}</td><td style={{ padding: 8 }}>{fmt(a.claimable_tokens)}</td><td style={{ padding: 8 }}>{a.status}</td></tr>)}
             {allocations.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No allocations loaded yet.</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>My Submissions</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ background: "#f6f6f6" }}>
+              <th style={{ textAlign: "left", padding: 8 }}>Submitted</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Task</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Evidence</th>
+              <th style={{ textAlign: "left", padding: 8 }}>State</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {submissions.map((s) => (
+              <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
+                <td style={{ padding: 8 }}>
+                  <div>{s.task_title || s.task_code || s.task_id}</div>
+                  {s.task_code && <code>{s.task_code}</code>}
+                </td>
+                <td style={{ padding: 8 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
+                <td style={{ padding: 8 }}>{s.state}</td>
+                <td style={{ padding: 8 }}>{s.notes || "-"}</td>
+              </tr>
+            ))}
+            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No submissions loaded yet.</td></tr>}
           </tbody>
         </table>
       </section>

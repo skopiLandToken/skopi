@@ -45,6 +45,7 @@ export default function AdminAirdropsPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -153,7 +154,7 @@ export default function AdminAirdropsPage() {
   async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); setAdminActionMessage(null);
     try {
       const res = await fetch("/api/admin/airdrop/submissions", {
         method: "POST",
@@ -162,6 +163,11 @@ export default function AdminAirdropsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed to ${action}`);
+      if (action === "approve") {
+        setAdminActionMessage(`Approved. Allocation: ${data?.allocation_id || "n/a"} · Remaining: ${data?.remaining_tokens ?? "n/a"}`);
+      } else {
+        setAdminActionMessage("Submission rejected.");
+      }
       await loadSubmissions(selectedCampaignId, t);
       await loadCampaigns(t);
     } catch (e: any) { setError(e?.message || "Review failed"); }
@@ -264,6 +270,7 @@ export default function AdminAirdropsPage() {
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0 }}>Manual Review Queue (pending_review)</h3>
         <button onClick={() => loadSubmissions()} disabled={loading}>Refresh Queue</button>
+        {adminActionMessage && <p style={{ marginTop: 8, color: "green" }}>{adminActionMessage}</p>}
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
           <thead><tr style={{ background: "#f6f6f6" }}>
