@@ -55,6 +55,7 @@ export default function AdminAirdropsPage() {
   const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
   const [submissionStateFilter, setSubmissionStateFilter] = useState<"pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all">("pending_review");
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
+  const [reconcileReport, setReconcileReport] = useState<Array<{ campaign_id: string; campaign_name: string; drift_tokens: number; remaining_tokens: number | null; ok: boolean }>>([]);
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -179,6 +180,54 @@ export default function AdminAirdropsPage() {
 
   function toggleSubmission(id: string, checked: boolean) {
     setSelectedSubmissionIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  }
+
+  async function downloadCsv(type: "submissions" | "allocations" | "campaigns") {
+    const t = token.trim();
+    if (!t) return setError("Enter admin token first");
+
+    try {
+      const q = new URLSearchParams({ type });
+      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
+      const res = await fetch(`/api/admin/airdrop/export?${q.toString()}`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `airdrop-${type}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(e?.message || "Export failed");
+    }
+  }
+
+  async function runReconcile() {
+    const t = token.trim();
+    if (!t) return setError("Enter admin token first");
+    setLoading(true); setError(null);
+    try {
+      const q = new URLSearchParams();
+      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
+      const res = await fetch(`/api/admin/airdrop/reconcile?${q.toString()}`, {
+        headers: { Authorization: `Bearer ${t}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Reconcile failed");
+      setReconcileReport(data.report || []);
+      setAdminActionMessage(`Reconcile done. Checked: ${data.checked_campaigns}, mismatches: ${data.mismatches}`);
+    } catch (e: any) {
+      setError(e?.message || "Reconcile failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function applySubmissionAction(action: "approve" | "reject", ids?: string[]) {
@@ -387,6 +436,39 @@ export default function AdminAirdropsPage() {
             {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No submissions for selected filter.</td></tr>}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Ops Tools</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={runReconcile} disabled={loading}>Run Reconcile</button>
+          <button onClick={() => downloadCsv("submissions")} disabled={loading}>Export Submissions CSV</button>
+          <button onClick={() => downloadCsv("allocations")} disabled={loading}>Export Allocations CSV</button>
+          <button onClick={() => downloadCsv("campaigns")} disabled={loading}>Export Campaigns CSV</button>
+        </div>
+
+        {reconcileReport.length > 0 && (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginTop: 10 }}>
+            <thead>
+              <tr style={{ background: "#f6f6f6" }}>
+                <th style={{ textAlign: "left", padding: 8 }}>Campaign</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Drift</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Remaining</th>
+                <th style={{ textAlign: "left", padding: 8 }}>OK?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reconcileReport.map((r) => (
+                <tr key={r.campaign_id} style={{ borderTop: "1px solid #eee" }}>
+                  <td style={{ padding: 8 }}>{r.campaign_name}</td>
+                  <td style={{ padding: 8 }}>{r.drift_tokens}</td>
+                  <td style={{ padding: 8 }}>{r.remaining_tokens ?? "-"}</td>
+                  <td style={{ padding: 8 }}>{r.ok ? "yes" : "no"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}
