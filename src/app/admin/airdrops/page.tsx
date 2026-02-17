@@ -176,19 +176,31 @@ export default function AdminAirdropsPage() {
   async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
+
+    let notes = "";
+    if (action === "reject") {
+      const input = window.prompt("Rejection reason (required):", "");
+      if (input === null) return;
+      notes = input.trim();
+      if (!notes) {
+        setError("Reject reason is required");
+        return;
+      }
+    }
+
     setLoading(true); setError(null); setAdminActionMessage(null);
     try {
       const res = await fetch("/api/admin/airdrop/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ submission_id: submissionId, action, reviewer: "iosif" }),
+        body: JSON.stringify({ submission_id: submissionId, action, reviewer: "iosif", notes: notes || null }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed to ${action}`);
       if (action === "approve") {
         setAdminActionMessage(`Approved. Allocation: ${data?.allocation_id || "n/a"} · Remaining: ${data?.remaining_tokens ?? "n/a"}`);
       } else {
-        setAdminActionMessage("Submission rejected.");
+        setAdminActionMessage(`Submission rejected. Reason: ${notes}`);
       }
       await loadSubmissions(selectedCampaignId, t);
       await loadCampaigns(t);

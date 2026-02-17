@@ -46,8 +46,9 @@ export async function GET(req: Request) {
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
     return NextResponse.json({ ok: true, submissions: data || [] });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unexpected error";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -57,12 +58,16 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const submissionId = String(body?.submission_id || "").trim();
-    const action = String(body?.action || "").trim().toLowerCase(); // approve/reject
+    const action = String(body?.action || "").trim().toLowerCase();
     const reviewer = String(body?.reviewer || "admin").trim();
-    const notes = body?.notes ? String(body.notes) : null;
+    const notes = body?.notes ? String(body.notes).trim() : "";
 
     if (!submissionId || !["approve", "reject"].includes(action)) {
       return NextResponse.json({ ok: false, error: "submission_id and valid action required" }, { status: 400 });
+    }
+
+    if (action === "reject" && !notes) {
+      return NextResponse.json({ ok: false, error: "reject_reason_required" }, { status: 400 });
     }
 
     const { data: sub, error: subErr } = await supabase
@@ -70,8 +75,8 @@ export async function POST(req: Request) {
       .select("id,campaign_id,task_id,user_id,wallet_address,state")
       .eq("id", submissionId)
       .single();
-    if (subErr || !sub) return NextResponse.json({ ok: false, error: "Submission not found" }, { status: 404 });
 
+    if (subErr || !sub) return NextResponse.json({ ok: false, error: "Submission not found" }, { status: 404 });
     if (sub.state !== "pending_review") {
       return NextResponse.json({ ok: false, error: "submission_not_pending" }, { status: 400 });
     }
@@ -83,11 +88,12 @@ export async function POST(req: Request) {
           state: "revoked",
           reviewed_at: new Date().toISOString(),
           reviewer,
-          notes: notes || "Rejected by reviewer",
+          notes,
         })
         .eq("id", submissionId);
+
       if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      return NextResponse.json({ ok: true, action: "rejected" });
+      return NextResponse.json({ ok: true, action: "rejected", notes });
     }
 
     const { data: task, error: taskErr } = await supabase
@@ -116,7 +122,8 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
     return NextResponse.json({ ok: true, action: "approved", allocation_id: alloc.allocation_id, remaining_tokens: alloc.remaining_tokens });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unexpected error";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
