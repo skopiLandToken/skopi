@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Campaign = {
   id: string;
@@ -68,6 +68,20 @@ export default function AdminAirdropsPage() {
   const [taskBounty, setTaskBounty] = useState("0");
   const [taskType, setTaskType] = useState<"auto" | "manual">("auto");
   const [taskMaxPerUser, setTaskMaxPerUser] = useState("");
+
+  const submissionCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: submissions.length,
+      pending_review: 0,
+      verified_auto: 0,
+      verified_manual: 0,
+      revoked: 0,
+    };
+    for (const s of submissions) {
+      counts[s.state] = (counts[s.state] || 0) + 1;
+    }
+    return counts;
+  }, [submissions]);
 
   async function loadCampaigns(useToken?: string) {
     const t = (useToken ?? token).trim();
@@ -290,6 +304,13 @@ export default function AdminAirdropsPage() {
           </label>
         </div>
         <button onClick={() => loadSubmissions()} disabled={loading} style={{ marginTop: 8 }}>Refresh Queue</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
+          <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f2f2" }}>all: {submissionCounts.all}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("pending_review") }}>pending: {submissionCounts.pending_review || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_auto") }}>auto: {submissionCounts.verified_auto || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_manual") }}>manual: {submissionCounts.verified_manual || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("revoked") }}>revoked: {submissionCounts.revoked || 0}</span>
+        </div>
         {adminActionMessage && <p style={{ marginTop: 8, color: "green" }}>{adminActionMessage}</p>}
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>

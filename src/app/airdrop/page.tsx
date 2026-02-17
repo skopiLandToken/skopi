@@ -96,6 +96,20 @@ export default function AirdropPage() {
     [submissions, submissionFilter]
   );
 
+  const submissionCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: submissions.length,
+      pending_review: 0,
+      verified_auto: 0,
+      verified_manual: 0,
+      revoked: 0,
+    };
+    for (const s of submissions) {
+      counts[s.state] = (counts[s.state] || 0) + 1;
+    }
+    return counts;
+  }, [submissions]);
+
   async function loadCampaigns() {
     try {
       const res = await fetch("/api/airdrop/campaigns", { cache: "no-store" });
@@ -319,6 +333,13 @@ export default function AirdropPage() {
               <option value="revoked">revoked</option>
             </select>
           </label>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
+          <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f2f2" }}>all: {submissionCounts.all}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("pending_review") }}>pending: {submissionCounts.pending_review || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_auto") }}>auto: {submissionCounts.verified_auto || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_manual") }}>manual: {submissionCounts.verified_manual || 0}</span>
+          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("revoked") }}>revoked: {submissionCounts.revoked || 0}</span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
           <thead>
