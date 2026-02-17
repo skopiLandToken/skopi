@@ -15,7 +15,7 @@ function isAuthorized(req: Request) {
 }
 
 async function allocate(campaignId: string, wallet: string, amount: number, userId?: string | null) {
-  const { data, error } = await supabase.rpc("airdrop_claim_fcfs", {
+  const { data, error } = await supabase.rpc("airdrop_allocate_task_fcfs", {
     p_campaign_id: campaignId,
     p_wallet: wallet,
     p_amount: amount,
@@ -71,6 +71,10 @@ export async function POST(req: Request) {
       .eq("id", submissionId)
       .single();
     if (subErr || !sub) return NextResponse.json({ ok: false, error: "Submission not found" }, { status: 404 });
+
+    if (sub.state !== "pending_review") {
+      return NextResponse.json({ ok: false, error: "submission_not_pending" }, { status: 400 });
+    }
 
     if (action === "reject") {
       const { error } = await supabase
