@@ -15,6 +15,15 @@ type Intent = {
   updated_at?: string;
 };
 
+type VerifyRun = {
+  ok: boolean;
+  scanned?: number;
+  confirmed?: number;
+  remainingCreated?: number;
+  errors?: Array<{ id: string; error: string }>;
+  error?: string;
+};
+
 function humanUsdc(amountAtomic: number) {
   return (amountAtomic / 1_000_000).toFixed(2);
 }
@@ -26,6 +35,10 @@ export default function AdminIntentsPage() {
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("");
+
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyLimit, setVerifyLimit] = useState("3");
+  const [verifyResult, setVerifyResult] = useState<VerifyRun | null>(null);
 
   async function load(useToken?: string) {
     const t = (useToken ?? token).trim();
@@ -59,11 +72,39 @@ export default function AdminIntentsPage() {
     }
   }
 
+  async function runVerifier() {
+    const t = token.trim();
+    if (!t) {
+      setError("Enter admin token first");
+      return;
+    }
+
+    const limit = Math.max(1, Math.min(Number(verifyLimit || 3), 10));
+
+    setVerifyLoading(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch(`/api/jobs/verify-intents?limit=${limit}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${t}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Verifier run failed");
+      setVerifyResult(data);
+      await load();
+    } catch (e: any) {
+      setVerifyResult({ ok: false, error: e?.message || "Verifier run failed" });
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
   useEffect(() => {
     const saved = localStorage.getItem("skopi_admin_token") || "";
     if (saved) {
       setToken(saved);
-      // defer first load until filters set (defaults are ready)
       setTimeout(() => load(saved), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,7 +125,7 @@ export default function AdminIntentsPage() {
           style={{ width: "100%", maxWidth: 520, padding: 8, marginBottom: 10 }}
         />
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
           <label>
             Status:{" "}
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -111,6 +152,41 @@ export default function AdminIntentsPage() {
             {loading ? "Loading..." : "Apply / Refresh"}
           </button>
         </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <label>
+            Verify batch limit:{" "}
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={verifyLimit}
+              onChange={(e) => setVerifyLimit(e.target.value)}
+              style={{ width: 70, padding: 4 }}
+            />
+          </label>
+
+          <button onClick={runVerifier} disabled={verifyLoading}>
+            {verifyLoading ? "Running verifier..." : "Run Verifier Now"}
+          </button>
+        </div>
+
+        {verifyResult && (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#f7f7f7" }}>
+            {verifyResult.ok ? (
+              <>
+                <div>✅ scanned: {verifyResult.scanned} | confirmed: {verifyResult.confirmed} | remainingCreated: {verifyResult.remainingCreated}</div>
+                {!!verifyResult.errors?.length && (
+                  <div style={{ marginTop: 6 }}>
+                    errors: {verifyResult.errors.map((e) => `${e.id.slice(0, 8)}…`).join(", ")}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ color: "crimson" }}>❌ {verifyResult.error || "Verifier failed"}</div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}
