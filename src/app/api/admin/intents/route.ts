@@ -1,25 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isAdminAuthorized } from "@/lib/admin-auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const adminReadToken = process.env.ADMIN_READ_TOKEN;
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 export async function GET(req: Request) {
   try {
-    if (!adminReadToken) {
-      return NextResponse.json(
-        { ok: false, error: "ADMIN_READ_TOKEN is not configured" },
-        { status: 500 }
-      );
-    }
-
-    const auth = req.headers.get("authorization") || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-
-    if (!token || token !== adminReadToken) {
+    if (!(await isAdminAuthorized(req))) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 

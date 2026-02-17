@@ -1,22 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isAdminAuthorized } from "@/lib/admin-auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const adminReadToken = process.env.ADMIN_READ_TOKEN;
-
-function isAuthorized(req: Request) {
-  if (!adminReadToken) return false;
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  return token === adminReadToken;
-}
 
 export async function GET(req: Request) {
   try {
-    if (!isAuthorized(req)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (!(await isAdminAuthorized(req))) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     const url = new URL(req.url);
     const campaignId = String(url.searchParams.get("campaign_id") || "").trim();

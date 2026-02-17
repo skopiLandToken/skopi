@@ -1,17 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { isAdminAuthorized } from "@/lib/admin-auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const adminReadToken = process.env.ADMIN_READ_TOKEN;
-
-function isAuthorized(req: Request) {
-  if (!adminReadToken) return false;
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  return token === adminReadToken;
-}
 
 function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
   const escape = (v: unknown) => {
@@ -27,7 +20,7 @@ function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
 }
 
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
+  if (!(await isAdminAuthorized(req))) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), { status: 401, headers: { "content-type": "application/json" } });
   }
 
