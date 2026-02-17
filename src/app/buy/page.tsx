@@ -1,0 +1,202 @@
+"use client";
+
+import { useState } from "react";
+
+type Touch = {
+source?: string | null;
+medium?: string | null;
+campaign?: string | null;
+content?: string | null;
+term?: string | null;
+landingPath?: string | null;
+referrer?: string | null;
+ts?: string;
+};
+
+type Intent = {
+id: string;
+status: string;
+amount_usdc_atomic: number;
+treasury_address: string;
+usdc_mint: string;
+reference_pubkey: string;
+created_at: string;
+};
+
+function readTouch(key: string): Touch | null {
+try {
+const raw = localStorage.getItem(key);
+if (!raw) return null;
+return JSON.parse(raw);
+} catch {
+return null;
+}
+}
+
+export default function BuyPage() {
+const [amount, setAmount] = useState("25");
+const [walletAddress, setWalletAddress] = useState("");
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+const [intent, setIntent] = useState<Intent | null>(null);
+
+async function createIntent() {
+setLoading(true);
+setError(null);
+setIntent(null);
+
+try {
+const amountUsdc = Number(amount);
+if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
+throw new Error("Enter a valid amount greater than 0");
+}
+
+const firstTouch = readTouch("skopi_first_touch");
+const lastTouch = readTouch("skopi_last_touch");
+
+const res = await fetch("/api/purchase-intents", {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+amountUsdc,
+walletAddress: walletAddress || null,
+
+landingPath: firstTouch?.landingPath || "/buy",
+referrer: firstTouch?.referrer || document.referrer || null,
+
+utm: {
+source: firstTouch?.source ?? null,
+medium: firstTouch?.medium ?? null,
+campaign: firstTouch?.campaign ?? null,
+content: firstTouch?.content ?? null,
+term: firstTouch?.term ?? null,
+},
+
+lastTouch: {
+source: lastTouch?.source ?? null,
+medium: lastTouch?.medium ?? null,
+campaign: lastTouch?.campaign ?? null,
+content: lastTouch?.content ?? null,
+term: lastTouch?.term ?? null,
+landingPath: lastTouch?.landingPath ?? null,
+referrer: lastTouch?.referrer ?? null,
+},
+}),
+});
+
+const data = await res.json();
+
+if (!res.ok || !data.ok) {
+throw new Error(data?.error || "Failed to create purchase intent");
+}
+
+setIntent(data.intent);
+} catch (e: any) {
+setError(e?.message || "Something went wrong");
+} finally {
+setLoading(false);
+}
+}
+return (
+<main style={{ maxWidth: 760, margin: "40px auto", padding: "0 16px" }}>
+<h1 style={{ fontSize: 32, marginBottom: 8 }}>Buy SKOpi (USDC)</h1>
+<p style={{ opacity: 0.8, marginBottom: 24 }}>
+Enter amount, create intent, then pay exact USDC amount on Solana.
+</p>
+
+<div
+style={{
+border: "1px solid #ddd",
+borderRadius: 12,
+padding: 16,
+marginBottom: 16,
+}}
+>
+<label style={{ display: "block", marginBottom: 8 }}>Amount (USDC)</label>
+<input
+type="number"
+min="1"
+step="0.01"
+value={amount}
+onChange={(e) => setAmount(e.target.value)}
+style={{
+width: "100%",
+padding: "10px 12px",
+borderRadius: 8,
+border: "1px solid #ccc",
+marginBottom: 12,
+}}
+/>
+
+<label style={{ display: "block", marginBottom: 8 }}>
+Wallet Address (optional for now)
+</label>
+<input
+type="text"
+value={walletAddress}
+onChange={(e) => setWalletAddress(e.target.value)}
+placeholder="Your Solana wallet address"
+style={{
+width: "100%",
+padding: "10px 12px",
+borderRadius: 8,
+border: "1px solid #ccc",
+marginBottom: 12,
+}}
+/>
+
+<button
+onClick={createIntent}
+disabled={loading}
+style={{
+padding: "10px 16px",
+borderRadius: 8,
+border: "none",
+cursor: "pointer",
+background: "#111",
+color: "#fff",
+}}
+>
+{loading ? "Creating..." : "Create Purchase Intent"}
+</button>
+</div>
+
+{error && (
+<div
+style={{
+border: "1px solid #f5b5b5",
+background: "#fff5f5",
+color: "#8a1c1c",
+borderRadius: 12,
+padding: 12,
+marginBottom: 16,
+}}
+>
+{error}
+</div>
+)}
+
+{intent && (
+<div
+style={{
+border: "1px solid #cce7d0",
+background: "#f3fff5",
+borderRadius: 12,
+padding: 16,
+}}
+>
+<h2 style={{ marginTop: 0 }}>Intent Created ✅</h2>
+<p><strong>Intent ID:</strong> {intent.id}</p>
+<p><strong>Status:</strong> {intent.status}</p>
+<p><strong>Amount (atomic):</strong> {intent.amount_usdc_atomic}</p>
+<p><strong>Treasury:</strong> {intent.treasury_address}</p>
+<p><strong>USDC Mint:</strong> {intent.usdc_mint}</p>
+<p><strong>Reference:</strong> {intent.reference_pubkey}</p>
+<p style={{ marginBottom: 0 }}>
+Next step: we’ll generate a Solana Pay link/QR from this intent.
+</p>
+</div>
+)}
+</main>
+);
+}
