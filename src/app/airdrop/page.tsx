@@ -64,6 +64,27 @@ function stateBadgeStyle(state: string) {
   return { background: "#f2f2f2", color: "#444" };
 }
 
+function humanizeSubmissionError(code: string) {
+  const map: Record<string, string> = {
+    campaign_not_active: "This campaign is not active right now.",
+    campaign_not_started: "This campaign has not started yet.",
+    campaign_ended: "This campaign has already ended.",
+    campaign_not_found: "Campaign not found.",
+    task_not_found: "Task not found for this campaign.",
+    task_inactive: "This task is currently inactive.",
+    evidence_url_invalid: "Please paste a valid URL starting with http:// or https://",
+    evidence_domain_not_allowed: "This proof link does not match the required platform for this task.",
+    duplicate_evidence: "This exact evidence link was already submitted for this task.",
+    rate_limited: "Too many submissions recently. Please wait a bit and try again.",
+    task_limit_reached: "You already reached the max submissions for this task.",
+    over_user_cap: "This claim would exceed your campaign cap.",
+    insufficient_pool: "Airdrop pool is currently insufficient for this bounty.",
+    pool_not_set: "Campaign pool is not configured yet.",
+    invalid_wallet: "Wallet format looks invalid.",
+  };
+  return map[code] || code || "Submission failed";
+}
+
 export default function AirdropPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -199,7 +220,9 @@ export default function AirdropPage() {
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data?.error || "Submission failed");
+        const raw = String(data?.error || "submission_failed");
+        const normalized = raw.trim().toLowerCase().replace(/\s+/g, "_");
+        throw new Error(humanizeSubmissionError(normalized));
       }
 
       const alloc = data?.allocation;
