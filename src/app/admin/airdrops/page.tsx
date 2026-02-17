@@ -57,7 +57,7 @@ export default function AdminAirdropsPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
   const [taskBounty, setTaskBounty] = useState("0");
-  const [taskManual, setTaskManual] = useState(false);
+  const [taskType, setTaskType] = useState<"auto" | "manual">("auto");
   const [taskMaxPerUser, setTaskMaxPerUser] = useState("");
 
   async function loadCampaigns(useToken?: string) {
@@ -136,7 +136,7 @@ export default function AdminAirdropsPage() {
           title: taskTitle.trim(),
           description: taskDesc || null,
           bounty_tokens: Number(taskBounty || 0),
-          requires_manual: taskManual,
+          requires_manual: taskType === "manual",
           max_per_user: taskMaxPerUser ? Number(taskMaxPerUser) : null,
           active: true,
           sort_order: 0,
@@ -144,7 +144,7 @@ export default function AdminAirdropsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create task");
-      setTaskCode(""); setTaskTitle(""); setTaskDesc(""); setTaskBounty("0"); setTaskManual(false); setTaskMaxPerUser("");
+      setTaskCode(""); setTaskTitle(""); setTaskDesc(""); setTaskBounty("0"); setTaskType("auto"); setTaskMaxPerUser("");
       await loadTasks(selectedCampaignId, t);
     } catch (e: any) { setError(e?.message || "Failed to create task"); }
     finally { setLoading(false); }
@@ -219,13 +219,37 @@ export default function AdminAirdropsPage() {
           </select></label>
         </div>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-          <input value={taskCode} onChange={(e) => setTaskCode(e.target.value)} placeholder="Task code" />
-          <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
-          <input value={taskBounty} onChange={(e) => setTaskBounty(e.target.value)} placeholder="Bounty tokens" />
-          <input value={taskMaxPerUser} onChange={(e) => setTaskMaxPerUser(e.target.value)} placeholder="Max per user" />
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={taskManual} onChange={(e) => setTaskManual(e.target.checked)} />Requires manual review</label>
-          <input value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} placeholder="Task description" />
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Code</span>
+            <input value={taskCode} onChange={(e) => setTaskCode(e.target.value)} placeholder="e.g. follow_x" />
+          </label>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Title</span>
+            <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Follow SKOpi on X" />
+          </label>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Bounty Tokens</span>
+            <input value={taskBounty} onChange={(e) => setTaskBounty(e.target.value)} placeholder="e.g. 25" />
+          </label>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Max Per User (optional)</span>
+            <input value={taskMaxPerUser} onChange={(e) => setTaskMaxPerUser(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Type</span>
+            <select value={taskType} onChange={(e) => setTaskType(e.target.value as "auto" | "manual")}>
+              <option value="auto">Auto (instant allocation after basic checks)</option>
+              <option value="manual">Manual (goes to review queue)</option>
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Description (optional)</span>
+            <input value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} placeholder="What user must do" />
+          </label>
         </div>
+        <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, opacity: 0.75 }}>
+          Current mode: <strong>{taskType === "auto" ? "Auto" : "Manual review"}</strong>
+        </p>
         <div style={{ marginTop: 10 }}><button onClick={createTask} disabled={loading || !selectedCampaignId}>Add Task</button></div>
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
