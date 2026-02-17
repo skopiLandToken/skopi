@@ -289,6 +289,9 @@ export default function AdminAirdropsPage() {
     <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
       <h1>Admin · Airdrop Campaigns (V2)</h1>
       <p style={{ opacity: 0.75 }}>Campaigns, tasks/bounties, and manual review queue.</p>
+      <p style={{ fontSize: 12, opacity: 0.7, marginTop: -4 }}>
+        Auth: Supabase allowlist token (preferred) or legacy ADMIN_READ_TOKEN fallback.
+      </p>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <label style={{ display: "block", marginBottom: 8 }}>Admin Token</label>
