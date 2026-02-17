@@ -54,6 +54,7 @@ export default function AdminAirdropsPage() {
   const [error, setError] = useState<string | null>(null);
   const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
   const [submissionStateFilter, setSubmissionStateFilter] = useState<"pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all">("pending_review");
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("draft");
@@ -117,7 +118,10 @@ export default function AdminAirdropsPage() {
     if (cid) q.set("campaign_id", cid);
     const res = await fetch(`/api/admin/airdrop/submissions?${q.toString()}`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
     const data = await res.json();
-    if (res.ok && data.ok) setSubmissions(data.submissions || []);
+    if (res.ok && data.ok) {
+      setSubmissions(data.submissions || []);
+      setSelectedSubmissionIds([]);
+    }
   }
 
   async function createCampaign() {
@@ -173,9 +177,16 @@ export default function AdminAirdropsPage() {
     finally { setLoading(false); }
   }
 
-  async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
+  function toggleSubmission(id: string, checked: boolean) {
+    setSelectedSubmissionIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  }
+
+  async function applySubmissionAction(action: "approve" | "reject", ids?: string[]) {
     const t = token.trim();
     if (!t) return setError("Enter admin token first");
+
+    const targetIds = (ids && ids.length > 0 ? ids : selectedSubmissionIds).filter(Boolean);
+    if (targetIds.length === 0) return setError("Select at least one submission");
 
     let notes = "";
     if (action === "reject") {
@@ -193,19 +204,20 @@ export default function AdminAirdropsPage() {
       const res = await fetch("/api/admin/airdrop/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ submission_id: submissionId, action, reviewer: "iosif", notes: notes || null }),
+        body: JSON.stringify({ submission_ids: targetIds, action, reviewer: "iosif", notes: notes || null }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed to ${action}`);
-      if (action === "approve") {
-        setAdminActionMessage(`Approved. Allocation: ${data?.allocation_id || "n/a"} · Remaining: ${data?.remaining_tokens ?? "n/a"}`);
-      } else {
-        setAdminActionMessage(`Submission rejected. Reason: ${notes}`);
-      }
+
+      setAdminActionMessage(`${action === "approve" ? "Approved" : "Rejected"}: ${data?.ok_count ?? 0} · Failed: ${data?.fail_count ?? 0}`);
       await loadSubmissions(selectedCampaignId, t);
       await loadCampaigns(t);
     } catch (e: any) { setError(e?.message || "Review failed"); }
     finally { setLoading(false); }
+  }
+
+  async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
+    await applySubmissionAction(action, [submissionId]);
   }
 
   useEffect(() => {
@@ -315,7 +327,11 @@ export default function AdminAirdropsPage() {
             </select>
           </label>
         </div>
-        <button onClick={() => loadSubmissions()} disabled={loading} style={{ marginTop: 8 }}>Refresh Queue</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <button onClick={() => loadSubmissions()} disabled={loading}>Refresh Queue</button>
+          <button onClick={() => applySubmissionAction("approve")} disabled={loading || selectedSubmissionIds.length === 0}>Approve Selected ({selectedSubmissionIds.length})</button>
+          <button onClick={() => applySubmissionAction("reject")} disabled={loading || selectedSubmissionIds.length === 0}>Reject Selected ({selectedSubmissionIds.length})</button>
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
           <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f2f2" }}>all: {submissionCounts.all}</span>
           <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("pending_review") }}>pending: {submissionCounts.pending_review || 0}</span>
@@ -327,6 +343,16 @@ export default function AdminAirdropsPage() {
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
           <thead><tr style={{ background: "#f6f6f6" }}>
+            <th style={{ textAlign: "left", padding: 8 }}>
+              <input
+                type="checkbox"
+                checked={submissions.length > 0 && submissions.every((s) => selectedSubmissionIds.includes(s.id))}
+                onChange={(e) => {
+                  if (e.target.checked) setSelectedSubmissionIds(submissions.filter((s) => s.state === "pending_review").map((s) => s.id));
+                  else setSelectedSubmissionIds([]);
+                }}
+              />
+            </th>
             <th style={{ textAlign: "left", padding: 8 }}>Submitted</th>
             <th style={{ textAlign: "left", padding: 8 }}>Wallet</th>
             <th style={{ textAlign: "left", padding: 8 }}>Handle</th>
@@ -337,6 +363,14 @@ export default function AdminAirdropsPage() {
           <tbody>
             {submissions.map((s) => (
               <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
+                <td style={{ padding: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSubmissionIds.includes(s.id)}
+                    disabled={s.state !== "pending_review"}
+                    onChange={(e) => toggleSubmission(s.id, e.target.checked)}
+                  />
+                </td>
                 <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
                 <td style={{ padding: 8 }}><code>{s.wallet_address.slice(0, 10)}…</code></td>
                 <td style={{ padding: 8 }}>{s.handle || "-"}</td>
@@ -350,7 +384,7 @@ export default function AdminAirdropsPage() {
                 </td>
               </tr>
             ))}
-            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={6}>No submissions for selected filter.</td></tr>}
+            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No submissions for selected filter.</td></tr>}
           </tbody>
         </table>
       </div>
