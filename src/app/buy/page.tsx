@@ -20,7 +20,9 @@ type Intent = {
   treasury_address: string;
   usdc_mint: string;
   reference_pubkey: string;
+  tx_signature?: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 function readTouch(key: string): Touch | null {
@@ -57,6 +59,11 @@ export default function BuyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [intent, setIntent] = useState<Intent | null>(null);
+
+  const [statusIntentId, setStatusIntentId] = useState("");
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusData, setStatusData] = useState<Intent | null>(null);
 
   const payUrl = useMemo(() => (intent ? buildSolanaPayUrl(intent) : ""), [intent]);
 
@@ -111,10 +118,36 @@ export default function BuyPage() {
       }
 
       setIntent(data.intent);
+      setStatusIntentId(data.intent.id);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function checkStatus() {
+    setStatusLoading(true);
+    setStatusError(null);
+    setStatusData(null);
+
+    try {
+      if (!statusIntentId.trim()) {
+        throw new Error("Enter an intent ID");
+      }
+
+      const res = await fetch(`/api/purchase-intents/${statusIntentId.trim()}/status`);
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to fetch status");
+      }
+
+      setStatusData(data.intent);
+    } catch (e: any) {
+      setStatusError(e?.message || "Status check failed");
+    } finally {
+      setStatusLoading(false);
     }
   }
 
@@ -128,10 +161,10 @@ export default function BuyPage() {
   }
 
   return (
-    <main style={{ maxWidth: 820, margin: "40px auto", padding: "0 16px" }}>
+    <main style={{ maxWidth: 860, margin: "40px auto", padding: "0 16px" }}>
       <h1 style={{ fontSize: 32, marginBottom: 8 }}>Buy SKOpi (USDC)</h1>
       <p style={{ opacity: 0.8, marginBottom: 24 }}>
-        Create an intent, then pay exact USDC on Solana using the generated payment details.
+        Create an intent, pay exact USDC on Solana, then check status.
       </p>
 
       <div
@@ -139,9 +172,11 @@ export default function BuyPage() {
           border: "1px solid #ddd",
           borderRadius: 12,
           padding: 16,
-          marginBottom: 16,
+          marginBottom: 20,
         }}
       >
+        <h2 style={{ marginTop: 0 }}>1) Create Purchase Intent</h2>
+
         <label style={{ display: "block", marginBottom: 8 }}>Amount (USDC)</label>
         <input
           type="number"
@@ -213,14 +248,14 @@ export default function BuyPage() {
             background: "#f3fff5",
             borderRadius: 12,
             padding: 16,
+            marginBottom: 20,
           }}
         >
-          <h2 style={{ marginTop: 0 }}>Intent Created ✅</h2>
+          <h2 style={{ marginTop: 0 }}>2) Pay with Wallet ✅</h2>
           <p><strong>Intent ID:</strong> {intent.id}</p>
           <p><strong>Status:</strong> {intent.status}</p>
           <p><strong>Amount:</strong> {humanUsdc(intent.amount_usdc_atomic)} USDC</p>
           <p><strong>Treasury:</strong> {intent.treasury_address}</p>
-          <p><strong>USDC Mint:</strong> {intent.usdc_mint}</p>
           <p><strong>Reference:</strong> {intent.reference_pubkey}</p>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
@@ -247,11 +282,82 @@ export default function BuyPage() {
           </div>
 
           <p style={{ marginTop: 14, marginBottom: 0 }}>
-            ⚠️ Send the <strong>exact USDC amount</strong> using this intent reference.
-            Payment confirmation checker comes next.
+            ⚠️ Send the <strong>exact USDC amount</strong> with this reference.
           </p>
         </div>
       )}
+
+      <div
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 12,
+          padding: 16,
+        }}
+      >
+        <h2 style={{ marginTop: 0 }}>3) Check Payment Status</h2>
+
+        <label style={{ display: "block", marginBottom: 8 }}>Intent ID</label>
+        <input
+          type="text"
+          value={statusIntentId}
+          onChange={(e) => setStatusIntentId(e.target.value)}
+          placeholder="Paste intent ID"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            marginBottom: 12,
+          }}
+        />
+
+        <button
+          onClick={checkStatus}
+          disabled={statusLoading}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 8,
+            border: "1px solid #222",
+            cursor: "pointer",
+            background: "#fff",
+          }}
+        >
+          {statusLoading ? "Checking..." : "Check Status"}
+        </button>
+
+        {statusError && (
+          <div
+            style={{
+              border: "1px solid #f5b5b5",
+              background: "#fff5f5",
+              color: "#8a1c1c",
+              borderRadius: 12,
+              padding: 12,
+              marginTop: 12,
+            }}
+          >
+            {statusError}
+          </div>
+        )}
+
+        {statusData && (
+          <div
+            style={{
+              border: "1px solid #cce7d0",
+              background: "#f3fff5",
+              borderRadius: 12,
+              padding: 12,
+              marginTop: 12,
+            }}
+          >
+            <p><strong>Status:</strong> {statusData.status}</p>
+            <p><strong>Intent ID:</strong> {statusData.id}</p>
+            <p><strong>Amount:</strong> {humanUsdc(statusData.amount_usdc_atomic)} USDC</p>
+            <p><strong>Reference:</strong> {statusData.reference_pubkey}</p>
+            <p><strong>Tx Signature:</strong> {statusData.tx_signature || "Not confirmed yet"}</p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
