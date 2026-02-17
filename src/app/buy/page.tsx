@@ -65,6 +65,9 @@ export default function BuyPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusData, setStatusData] = useState<Intent | null>(null);
 
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
+
   const payUrl = useMemo(() => (intent ? buildSolanaPayUrl(intent) : ""), [intent]);
 
   async function createIntent() {
@@ -87,10 +90,8 @@ export default function BuyPage() {
         body: JSON.stringify({
           amountUsdc,
           walletAddress: walletAddress || null,
-
           landingPath: firstTouch?.landingPath || "/buy",
           referrer: firstTouch?.referrer || document.referrer || null,
-
           utm: {
             source: firstTouch?.source ?? null,
             medium: firstTouch?.medium ?? null,
@@ -98,7 +99,6 @@ export default function BuyPage() {
             content: firstTouch?.content ?? null,
             term: firstTouch?.term ?? null,
           },
-
           lastTouch: {
             source: lastTouch?.source ?? null,
             medium: lastTouch?.medium ?? null,
@@ -112,13 +112,11 @@ export default function BuyPage() {
       });
 
       const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to create purchase intent");
-      }
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create purchase intent");
 
       setIntent(data.intent);
       setStatusIntentId(data.intent.id);
+      setVerifyMsg(null);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
     } finally {
@@ -132,22 +130,48 @@ export default function BuyPage() {
     setStatusData(null);
 
     try {
-      if (!statusIntentId.trim()) {
-        throw new Error("Enter an intent ID");
-      }
+      const id = statusIntentId.trim();
+      if (!id) throw new Error("Enter an intent ID");
 
-      const res = await fetch(`/api/purchase-intents/${statusIntentId.trim()}/status`);
+      const res = await fetch(`/api/purchase-intents/${id}/status`);
       const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to fetch status");
-      }
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to fetch status");
 
       setStatusData(data.intent);
     } catch (e: any) {
       setStatusError(e?.message || "Status check failed");
     } finally {
       setStatusLoading(false);
+    }
+  }
+
+  async function verifyOnChain() {
+    setVerifyLoading(true);
+    setVerifyMsg(null);
+    try {
+      const id = statusIntentId.trim();
+      if (!id) throw new Error("Enter an intent ID first");
+
+      const res = await fetch(`/api/purchase-intents/${id}/verify`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || "Verification failed");
+      }
+
+      if (data.matched) {
+        setVerifyMsg("✅ Payment matched on-chain and marked confirmed.");
+      } else if (data.alreadyConfirmed) {
+        setVerifyMsg("✅ Intent already confirmed.");
+      } else {
+        setVerifyMsg("⏳ No exact confirmed transfer found yet. Try again in a bit.");
+      }
+
+      await checkStatus();
+    } catch (e: any) {
+      setVerifyMsg(`❌ ${e?.message || "Verify failed"}`);
+    } finally {
+      setVerifyLoading(false);
     }
   }
 
@@ -164,19 +188,11 @@ export default function BuyPage() {
     <main style={{ maxWidth: 860, margin: "40px auto", padding: "0 16px" }}>
       <h1 style={{ fontSize: 32, marginBottom: 8 }}>Buy SKOpi (USDC)</h1>
       <p style={{ opacity: 0.8, marginBottom: 24 }}>
-        Create an intent, pay exact USDC on Solana, then check status.
+        Create an intent, pay exact USDC on Solana, then check/verify status.
       </p>
 
-      <div
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
+      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, marginBottom: 20 }}>
         <h2 style={{ marginTop: 0 }}>1) Create Purchase Intent</h2>
-
         <label style={{ display: "block", marginBottom: 8 }}>Amount (USDC)</label>
         <input
           type="number"
@@ -184,73 +200,35 @@ export default function BuyPage() {
           step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #ccc",
-            marginBottom: 12,
-          }}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
         />
 
-        <label style={{ display: "block", marginBottom: 8 }}>
-          Wallet Address (optional for now)
-        </label>
+        <label style={{ display: "block", marginBottom: 8 }}>Wallet Address (optional for now)</label>
         <input
           type="text"
           value={walletAddress}
           onChange={(e) => setWalletAddress(e.target.value)}
           placeholder="Your Solana wallet address"
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #ccc",
-            marginBottom: 12,
-          }}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
         />
 
         <button
           onClick={createIntent}
           disabled={loading}
-          style={{
-            padding: "10px 16px",
-            borderRadius: 8,
-            border: "none",
-            cursor: "pointer",
-            background: "#111",
-            color: "#fff",
-          }}
+          style={{ padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", background: "#111", color: "#fff" }}
         >
           {loading ? "Creating..." : "Create Purchase Intent"}
         </button>
       </div>
 
       {error && (
-        <div
-          style={{
-            border: "1px solid #f5b5b5",
-            background: "#fff5f5",
-            color: "#8a1c1c",
-            borderRadius: 12,
-            padding: 12,
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ border: "1px solid #f5b5b5", background: "#fff5f5", color: "#8a1c1c", borderRadius: 12, padding: 12, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
       {intent && (
-        <div
-          style={{
-            border: "1px solid #cce7d0",
-            background: "#f3fff5",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ border: "1px solid #cce7d0", background: "#f3fff5", borderRadius: 12, padding: 16, marginBottom: 20 }}>
           <h2 style={{ marginTop: 0 }}>2) Pay with Wallet ✅</h2>
           <p><strong>Intent ID:</strong> {intent.id}</p>
           <p><strong>Status:</strong> {intent.status}</p>
@@ -259,24 +237,10 @@ export default function BuyPage() {
           <p><strong>Reference:</strong> {intent.reference_pubkey}</p>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button onClick={() => copyText(intent.treasury_address, "Treasury address")}>
-              Copy Treasury
-            </button>
-            <button onClick={() => copyText(intent.reference_pubkey, "Reference")}>
-              Copy Reference
-            </button>
-            <button onClick={() => copyText(payUrl, "Payment URL")}>
-              Copy Payment URL
-            </button>
-            <a
-              href={payUrl}
-              style={{
-                padding: "6px 10px",
-                border: "1px solid #222",
-                borderRadius: 6,
-                textDecoration: "none",
-              }}
-            >
+            <button onClick={() => copyText(intent.treasury_address, "Treasury address")}>Copy Treasury</button>
+            <button onClick={() => copyText(intent.reference_pubkey, "Reference")}>Copy Reference</button>
+            <button onClick={() => copyText(payUrl, "Payment URL")}>Copy Payment URL</button>
+            <a href={payUrl} style={{ padding: "6px 10px", border: "1px solid #222", borderRadius: 6, textDecoration: "none" }}>
               Open in Wallet
             </a>
           </div>
@@ -287,13 +251,7 @@ export default function BuyPage() {
         </div>
       )}
 
-      <div
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          padding: 16,
-        }}
-      >
+      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
         <h2 style={{ marginTop: 0 }}>3) Check Payment Status</h2>
 
         <label style={{ display: "block", marginBottom: 8 }}>Intent ID</label>
@@ -302,54 +260,41 @@ export default function BuyPage() {
           value={statusIntentId}
           onChange={(e) => setStatusIntentId(e.target.value)}
           placeholder="Paste intent ID"
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #ccc",
-            marginBottom: 12,
-          }}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
         />
 
-        <button
-          onClick={checkStatus}
-          disabled={statusLoading}
-          style={{
-            padding: "10px 16px",
-            borderRadius: 8,
-            border: "1px solid #222",
-            cursor: "pointer",
-            background: "#fff",
-          }}
-        >
-          {statusLoading ? "Checking..." : "Check Status"}
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={checkStatus}
+            disabled={statusLoading}
+            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #222", cursor: "pointer", background: "#fff" }}
+          >
+            {statusLoading ? "Checking..." : "Check Status"}
+          </button>
+
+          <button
+            onClick={verifyOnChain}
+            disabled={verifyLoading}
+            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #222", cursor: "pointer", background: "#111", color: "#fff" }}
+          >
+            {verifyLoading ? "Verifying..." : "Verify On-Chain Payment"}
+          </button>
+        </div>
+
+        {verifyMsg && (
+          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#f7f7f7" }}>
+            {verifyMsg}
+          </div>
+        )}
 
         {statusError && (
-          <div
-            style={{
-              border: "1px solid #f5b5b5",
-              background: "#fff5f5",
-              color: "#8a1c1c",
-              borderRadius: 12,
-              padding: 12,
-              marginTop: 12,
-            }}
-          >
+          <div style={{ border: "1px solid #f5b5b5", background: "#fff5f5", color: "#8a1c1c", borderRadius: 12, padding: 12, marginTop: 12 }}>
             {statusError}
           </div>
         )}
 
         {statusData && (
-          <div
-            style={{
-              border: "1px solid #cce7d0",
-              background: "#f3fff5",
-              borderRadius: 12,
-              padding: 12,
-              marginTop: 12,
-            }}
-          >
+          <div style={{ border: "1px solid #cce7d0", background: "#f3fff5", borderRadius: 12, padding: 12, marginTop: 12 }}>
             <p><strong>Status:</strong> {statusData.status}</p>
             <p><strong>Intent ID:</strong> {statusData.id}</p>
             <p><strong>Amount:</strong> {humanUsdc(statusData.amount_usdc_atomic)} USDC</p>
