@@ -41,3 +41,10 @@ yarn-error.log*
 next-env.d.ts
 node_modules
 .env*.local
+
+# OpenClaw scan artifacts
+.openclaw_bigfiles.txt
+.openclaw_filelist.txt
+.openclaw_grep_hits.txt
+PROJECT_SCAN_INDEX.md
+local_scan_skopi.sh
