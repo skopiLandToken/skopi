@@ -53,6 +53,16 @@ function buildSolanaPayUrl(intent: Intent) {
   return `solana:${recipient}?${params.toString()}`;
 }
 
+function readRefCodeFromUrl(): string | null {
+  try {
+    const u = new URL(window.location.href);
+    const v = u.searchParams.get("ref") || u.searchParams.get("ref_code");
+    return v ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function BuyPage() {
   const [amount, setAmount] = useState("25");
   const [walletAddress, setWalletAddress] = useState("");
@@ -83,12 +93,14 @@ export default function BuyPage() {
 
       const firstTouch = readTouch("skopi_first_touch");
       const lastTouch = readTouch("skopi_last_touch");
+      const refCode = readRefCodeFromUrl();
 
       const res = await fetch("/api/purchase-intents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amountUsdc,
+          refCode: refCode || null,
           walletAddress: walletAddress || null,
           landingPath: firstTouch?.landingPath || "/buy",
           referrer: firstTouch?.referrer || document.referrer || null,
@@ -100,6 +112,7 @@ export default function BuyPage() {
             term: firstTouch?.term ?? null,
           },
           lastTouch: {
+            refCode: refCode || null,
             source: lastTouch?.source ?? null,
             medium: lastTouch?.medium ?? null,
             campaign: lastTouch?.campaign ?? null,

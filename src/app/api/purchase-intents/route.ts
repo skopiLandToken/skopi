@@ -20,6 +20,7 @@ walletAddress?: string | null;
 userId?: string | null;
 landingPath?: string | null;
 referrer?: string | null;
+refCode?: string | null;
 utm?: {
 source?: string | null;
 medium?: string | null;
@@ -35,6 +36,7 @@ content?: string | null;
 term?: string | null;
 landingPath?: string | null;
 referrer?: string | null;
+refCode?: string | null;
 };
 };
 
@@ -93,6 +95,9 @@ lt_utm_content: body.lastTouch?.content ?? null,
 lt_utm_term: body.lastTouch?.term ?? null,
 lt_landing_path: body.lastTouch?.landingPath ?? null,
 lt_referrer: body.lastTouch?.referrer ?? null,
+
+ft_ref_code: body.refCode ?? null,
+lt_ref_code: body.lastTouch?.refCode ?? null,
 };
 
 const { data, error } = await supabase

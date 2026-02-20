@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("purchase_intents")
       .select(
-        "id,status,amount_usdc_atomic,wallet_address,reference_pubkey,tx_signature,ft_utm_source,ft_utm_campaign,created_at,updated_at"
+        "id,status,amount_usdc_atomic,wallet_address,reference_pubkey,tx_signature,ft_utm_source,ft_utm_campaign,ft_ref_code,created_at,updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(200);

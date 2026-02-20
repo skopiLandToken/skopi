@@ -11,6 +11,7 @@ type Intent = {
   tx_signature?: string | null;
   ft_utm_source?: string | null;
   ft_utm_campaign?: string | null;
+  ft_ref_code?: string | null;
   created_at: string;
   updated_at?: string;
 };
@@ -208,6 +209,7 @@ export default function AdminIntentsPage() {
                 <th style={{ textAlign: "left", padding: 8 }}>Amount</th>
                 <th style={{ textAlign: "left", padding: 8 }}>UTM Source</th>
                 <th style={{ textAlign: "left", padding: 8 }}>Campaign</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Ref Code</th>
                 <th style={{ textAlign: "left", padding: 8 }}>Intent</th>
                 <th style={{ textAlign: "left", padding: 8 }}>Tx</th>
                 <th style={{ textAlign: "left", padding: 8 }}>Receipt</th>
