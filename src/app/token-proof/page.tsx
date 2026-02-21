@@ -1,10 +1,17 @@
+import { headers } from "next/headers";
+
 export const dynamic = "force-dynamic";
 
 async function getProof() {
-  const res = await fetch("/api/token-proof", { cache: "no-store" });
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "app.skopi.io";
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const baseUrl = `${proto}://${host}`;
+  const res = await fetch(`${baseUrl}/api/token-proof`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Token-proof fetch failed: ${res.status}`);
   return res.json();
 }
+
 
 function fmtRaw(raw: string, decimals: number) {
   const neg = raw.startsWith("-");
