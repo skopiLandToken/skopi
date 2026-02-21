@@ -1,21 +1,18 @@
 // ./src/app/api/purchase-intents/[id]/commit-commissions/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(
-  _req: Request,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
+  const { id } = await params;
 
-  // Service role is required because we used SECURITY DEFINER functions,
-  // but your existing admin routes likely already do this.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 1) Ensure intent exists + confirmed
   const { data: intent, error: intentErr } = await supabase
     .from("purchase_intents")
     .select("id,status,confirmed_at")
@@ -35,7 +32,6 @@ export async function POST(
     );
   }
 
-  // 2) Call the DB function (idempotent)
   const { data: rows, error: rpcErr } = await supabase
     .rpc("commit_affiliate_commissions", { p_intent_id: id });
 
