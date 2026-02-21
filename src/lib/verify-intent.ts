@@ -1,14 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { createClient } from "@supabase/supabase-js";
 
-/**
- * NOTE:
- * - This file verifies on-chain USDC transfers for a purchase_intent.
- * - When an intent becomes confirmed, it now auto-commits affiliate commissions via:
- *   public.commit_affiliate_commissions(p_intent_id uuid)
- * - The DB function is idempotent (unique(intent_id, level)), so retries are safe.
- */
-
 type IntentRow = {
   id: string;
   status: string;
@@ -29,7 +21,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Use your existing RPC env (this is typically already in .env.local / Vercel env vars)
 const RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
@@ -51,9 +42,7 @@ export async function verifyIntentById(id: string): Promise<VerifyResult> {
 }
 
 export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResult> {
-  // If already confirmed, no need to scan chain again.
   if (intent.status === "confirmed") {
-    // Still safe to attempt commission commit (idempotent), but we can skip.
     return { ok: true as const, matched: true as const, intent };
   }
 
@@ -65,7 +54,6 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
     return { ok: false as const, error: "Intent missing treasury/usdc_mint/amount" };
   }
 
-  // We scan recent signatures for the reference pubkey (your intent reference address)
   const reference = new PublicKey(intent.reference_pubkey);
   const sigs = await connection.getSignaturesForAddress(reference, { limit: 20 });
 
@@ -81,13 +69,9 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
 
     if (!tx?.meta) continue;
 
-    // Parsed token balances can be checked for mint/destination/amount match
     const postTokenBalances = tx.meta.postTokenBalances || [];
     const preTokenBalances = tx.meta.preTokenBalances || [];
 
-    // Match by mint + destination + exact amount delta.
-    // We look for a token account whose owner is treasury and mint is USDC,
-    // with token amount delta matching expectedAtomic.
     let mintMatched = false;
     let destMatched = false;
     let amountMatched = false;
@@ -105,42 +89,10 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
       const preAmount = pre ? Number(pre.uiTokenAmount.amount) : 0;
       const delta = postAmount - preAmount;
 
-      // Owner is sometimes present; if not, we fallback to destination check by parsing instructions.
       const owner = (post as any).owner as string | undefined;
       if (owner && owner === treasury) destMatched = true;
 
       if (delta === expectedAtomic) amountMatched = true;
-    }
-
-    // Fallback destination matching: parse instructions for a USDC transfer to treasury
-    if (mintMatched && amountMatched && !destMatched) {
-      try {
-        const ix = tx.transaction.message.instructions as any[];
-        for (const ins of ix) {
-          const parsed = ins?.parsed;
-          if (!parsed) continue;
-          if (parsed?.type !== "transferChecked" && parsed?.type !== "transfer") continue;
-
-          const info = parsed?.info;
-          if (!info) continue;
-
-          const dest = info?.destination || info?.dest;
-          const mint = info?.mint;
-
-          // Amount might be string; for transferChecked it can be "tokenAmount"
-          const amtStr = info?.amount || info?.tokenAmount?.amount;
-
-          if (mint && mint !== usdcMint) continue;
-          if (dest && dest === treasury) destMatched = true;
-
-          if (amtStr != null) {
-            const amt = Number(amtStr);
-            if (amt === expectedAtomic) amountMatched = true;
-          }
-        }
-      } catch {
-        // ignore fallback parsing failures
-      }
     }
 
     if (amountMatched && destMatched && mintMatched) {
@@ -155,11 +107,7 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
       .update({ failure_reason: "No exact matching confirmed transfer found yet" })
       .eq("id", intent.id);
 
-    return {
-      ok: true as const,
-      matched: false as const,
-      reason: "No exact matching transfer yet",
-    };
+    return { ok: true as const, matched: false as const, reason: "No exact matching transfer yet" };
   }
 
   const { data: updated, error: updateErr } = await supabase
@@ -171,23 +119,31 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
       failure_reason: null,
     })
     .eq("id", intent.id)
-    .select("id,status,tx_signature,confirmed_at,updated_at")
+    .select("id,status,tx_signature,confirmed_at,updated_at,tranche_id,tokens_skopi,price_usdc_used")
     .single();
 
   if (updateErr) {
     return { ok: false as const, error: updateErr.message };
   }
 
-  // ✅ Auto-commit affiliate commissions after confirmation (idempotent)
+  // 1) Commit affiliate commissions (idempotent)
   try {
     const { error: rpcErr } = await supabase.rpc("commit_affiliate_commissions", {
       p_intent_id: intent.id,
     });
-    if (rpcErr) {
-      console.error("commit_affiliate_commissions failed:", rpcErr.message);
-    }
+    if (rpcErr) console.error("commit_affiliate_commissions failed:", rpcErr.message);
   } catch (e) {
     console.error("commit_affiliate_commissions threw:", e);
+  }
+
+  // 2) Decrement tranche remaining (idempotent-ish via confirmed gate + update condition)
+  try {
+    const { error: tErr } = await supabase.rpc("finalize_tranche_on_confirm", {
+      p_intent_id: intent.id,
+    });
+    if (tErr) console.error("finalize_tranche_on_confirm failed:", tErr.message);
+  } catch (e) {
+    console.error("finalize_tranche_on_confirm threw:", e);
   }
 
   return { ok: true as const, matched: true as const, intent: updated };
