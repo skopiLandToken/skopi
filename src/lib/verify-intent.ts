@@ -1,10 +1,13 @@
+import { Connection, PublicKey } from "@solana/web3.js";
 import { createClient } from "@supabase/supabase-js";
-import {
-  Connection,
-  PublicKey,
-  ParsedInstruction,
-  PartiallyDecodedInstruction,
-} from "@solana/web3.js";
+
+/**
+ * NOTE:
+ * - This file verifies on-chain USDC transfers for a purchase_intent.
+ * - When an intent becomes confirmed, it now auto-commits affiliate commissions via:
+ *   public.commit_affiliate_commissions(p_intent_id uuid)
+ * - The DB function is idempotent (unique(intent_id, level)), so retries are safe.
+ */
 
 type IntentRow = {
   id: string;
@@ -16,99 +19,127 @@ type IntentRow = {
   tx_signature?: string | null;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+type VerifyResult =
+  | { ok: true; matched: false; reason: string }
+  | { ok: true; matched: true; intent: any }
+  | { ok: false; error: string };
 
-const supabase = createClient(supabaseUrl, serviceRoleKey);
-const connection = new Connection(rpcUrl, "confirmed");
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-function isParsedInstruction(
-  ix: ParsedInstruction | PartiallyDecodedInstruction
-): ix is ParsedInstruction {
-  return "parsed" in ix;
-}
+// Use your existing RPC env (this is typically already in .env.local / Vercel env vars)
+const RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+  process.env.SOLANA_RPC_URL ||
+  "https://api.mainnet-beta.solana.com";
 
-export async function getIntentById(id: string) {
-  const { data, error } = await supabase
+const connection = new Connection(RPC_URL, "confirmed");
+
+export async function verifyIntentById(id: string): Promise<VerifyResult> {
+  const { data: intent, error } = await supabase
     .from("purchase_intents")
-    .select("id,status,amount_usdc_atomic,treasury_address,usdc_mint,reference_pubkey,tx_signature")
+    .select("id,status,amount_usdc_atomic,treasury_address,usdc_mint,reference_pubkey,tx_signature,confirmed_at")
     .eq("id", id)
     .single();
 
-  return { data: data as IntentRow | null, error };
+  if (error) return { ok: false as const, error: error.message };
+  if (!intent) return { ok: false as const, error: "Intent not found" };
+
+  return verifyIntentObject(intent as IntentRow);
 }
 
-export async function verifyIntentById(id: string) {
-  const { data: intent, error } = await getIntentById(id);
-  if (error || !intent) {
-    return { ok: false as const, notFound: true as const, error: error?.message || "Intent not found" };
-  }
-
-  return verifyIntentObject(intent);
-}
-
-export async function verifyIntentObject(intent: IntentRow) {
+export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResult> {
+  // If already confirmed, no need to scan chain again.
   if (intent.status === "confirmed") {
-    return { ok: true as const, alreadyConfirmed: true as const, matched: true as const, intent };
+    // Still safe to attempt commission commit (idempotent), but we can skip.
+    return { ok: true as const, matched: true as const, intent };
   }
 
-  const reference = new PublicKey(intent.reference_pubkey);
   const treasury = intent.treasury_address;
+  const usdcMint = intent.usdc_mint;
   const expectedAtomic = Number(intent.amount_usdc_atomic);
-  const expectedMint = intent.usdc_mint;
 
-  const sigInfos = await connection.getSignaturesForAddress(reference, { limit: 20 });
-
-  if (!sigInfos.length) {
-    await supabase
-      .from("purchase_intents")
-      .update({ failure_reason: "No tx found for reference yet" })
-      .eq("id", intent.id);
-
-    return {
-      ok: true as const,
-      matched: false as const,
-      reason: "No tx found for reference yet",
-    };
+  if (!treasury || !usdcMint || !expectedAtomic || expectedAtomic <= 0) {
+    return { ok: false as const, error: "Intent missing treasury/usdc_mint/amount" };
   }
+
+  // We scan recent signatures for the reference pubkey (your intent reference address)
+  const reference = new PublicKey(intent.reference_pubkey);
+  const sigs = await connection.getSignaturesForAddress(reference, { limit: 20 });
 
   let matchedSignature: string | null = null;
 
-  for (const sigInfo of sigInfos) {
+  for (const sigInfo of sigs) {
+    if (sigInfo.err) continue;
+
     const tx = await connection.getParsedTransaction(sigInfo.signature, {
-      commitment: "confirmed",
       maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
     });
 
-    if (!tx?.transaction?.message?.instructions) continue;
+    if (!tx?.meta) continue;
 
-    let amountMatched = false;
-    let destMatched = false;
+    // Parsed token balances can be checked for mint/destination/amount match
+    const postTokenBalances = tx.meta.postTokenBalances || [];
+    const preTokenBalances = tx.meta.preTokenBalances || [];
+
+    // Match by mint + destination + exact amount delta.
+    // We look for a token account whose owner is treasury and mint is USDC,
+    // with token amount delta matching expectedAtomic.
     let mintMatched = false;
+    let destMatched = false;
+    let amountMatched = false;
 
-    for (const ix of tx.transaction.message.instructions) {
-      if (!isParsedInstruction(ix)) continue;
-      if (ix.program !== "spl-token") continue;
+    for (let i = 0; i < postTokenBalances.length; i++) {
+      const post = postTokenBalances[i];
+      const pre = preTokenBalances.find((p) => p.accountIndex === post.accountIndex);
 
-      const parsed = ix.parsed as any;
-      const info = parsed?.info;
+      if (!post?.mint) continue;
+      if (post.mint !== usdcMint) continue;
 
-      if (parsed?.type === "transferChecked" && info) {
-        const dest = info.destination;
-        const mint = info.mint;
-        const tokenAmount = Number(info.tokenAmount?.amount ?? 0);
+      mintMatched = true;
 
-        if (dest === treasury) destMatched = true;
-        if (mint === expectedMint) mintMatched = true;
-        if (tokenAmount === expectedAtomic) amountMatched = true;
-      }
+      const postAmount = Number(post.uiTokenAmount.amount);
+      const preAmount = pre ? Number(pre.uiTokenAmount.amount) : 0;
+      const delta = postAmount - preAmount;
 
-      if (parsed?.type === "transfer" && info) {
-        const dest = info.destination;
-        const tokenAmount = Number(info.amount ?? 0);
-        if (dest === treasury) destMatched = true;
-        if (tokenAmount === expectedAtomic) amountMatched = true;
+      // Owner is sometimes present; if not, we fallback to destination check by parsing instructions.
+      const owner = (post as any).owner as string | undefined;
+      if (owner && owner === treasury) destMatched = true;
+
+      if (delta === expectedAtomic) amountMatched = true;
+    }
+
+    // Fallback destination matching: parse instructions for a USDC transfer to treasury
+    if (mintMatched && amountMatched && !destMatched) {
+      try {
+        const ix = tx.transaction.message.instructions as any[];
+        for (const ins of ix) {
+          const parsed = ins?.parsed;
+          if (!parsed) continue;
+          if (parsed?.type !== "transferChecked" && parsed?.type !== "transfer") continue;
+
+          const info = parsed?.info;
+          if (!info) continue;
+
+          const dest = info?.destination || info?.dest;
+          const mint = info?.mint;
+
+          // Amount might be string; for transferChecked it can be "tokenAmount"
+          const amtStr = info?.amount || info?.tokenAmount?.amount;
+
+          if (mint && mint !== usdcMint) continue;
+          if (dest && dest === treasury) destMatched = true;
+
+          if (amtStr != null) {
+            const amt = Number(amtStr);
+            if (amt === expectedAtomic) amountMatched = true;
+          }
+        }
+      } catch {
+        // ignore fallback parsing failures
       }
     }
 
@@ -145,6 +176,18 @@ export async function verifyIntentObject(intent: IntentRow) {
 
   if (updateErr) {
     return { ok: false as const, error: updateErr.message };
+  }
+
+  // ✅ Auto-commit affiliate commissions after confirmation (idempotent)
+  try {
+    const { error: rpcErr } = await supabase.rpc("commit_affiliate_commissions", {
+      p_intent_id: intent.id,
+    });
+    if (rpcErr) {
+      console.error("commit_affiliate_commissions failed:", rpcErr.message);
+    }
+  } catch (e) {
+    console.error("commit_affiliate_commissions threw:", e);
   }
 
   return { ok: true as const, matched: true as const, intent: updated };
