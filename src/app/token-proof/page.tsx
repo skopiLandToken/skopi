@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 async function getProof() {
-  const res = await fetch("http://127.0.0.1:3000/api/token-proof", { cache: "no-store" });
+  const res = await fetch("/api/token-proof", { cache: "no-store" });
   if (!res.ok) throw new Error(`Token-proof fetch failed: ${res.status}`);
   return res.json();
 }
