@@ -11,12 +11,14 @@ function fmtRaw(raw: string, decimals: number) {
   const s = neg ? raw.slice(1) : raw;
 
   const pad = s.padStart(decimals + 1, "0");
-  const i = pad.slice(0, -decimals);
-  const f = pad.slice(-decimals);
+  const iStr = pad.slice(0, -decimals);
+  const fStr = pad.slice(-decimals);
 
-  const withCommas = i.replace(/\B(?=(\d{3})+(!?\d))/g, ",");
-  return `${neg ? "-" : ""}${withCommas}.${f}`;
+  // format integer part safely
+  const iFmt = new Intl.NumberFormat("en-US").format(Number(iStr));
+  return `${neg ? "-" : ""}${iFmt}.${fStr}`;
 }
+
 
 export default async function TokenProofPage() {
   const data = await getProof();
