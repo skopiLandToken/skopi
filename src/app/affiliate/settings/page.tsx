@@ -1,26 +1,36 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export default function AffiliateSettingsPage() {
-  const supabase = useMemo(() => {
-    return createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }, []);
-
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!url || !anon) {
+      setMsg(
+        "Missing Supabase public env vars (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const client = createClient(url, anon);
+    setSupabase(client);
+
     (async () => {
       setLoading(true);
       setMsg(null);
 
-      const { data: userRes } = await supabase.auth.getUser();
+      const { data: userRes } = await client.auth.getUser();
       const user = userRes?.user;
       if (!user) {
         setMsg("You must be logged in to set your payout wallet.");
@@ -28,7 +38,7 @@ export default function AffiliateSettingsPage() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("marketing_partners")
         .select("payout_wallet_address")
         .eq("user_id", user.id)
@@ -39,9 +49,10 @@ export default function AffiliateSettingsPage() {
 
       setLoading(false);
     })();
-  }, [supabase]);
+  }, []);
 
   async function save() {
+    if (!supabase) return;
     setMsg(null);
 
     const { data: userRes } = await supabase.auth.getUser();
@@ -79,36 +90,22 @@ export default function AffiliateSettingsPage() {
       <input
         value={wallet}
         onChange={(e) => setWallet(e.target.value)}
-        placeholder="Paste Solana address (e.g., ...)"
-        style={{
-          width: "100%",
-          padding: "12px 14px",
-          borderRadius: 10,
-          border: "1px solid rgba(255,255,255,0.15)",
-          background: "rgba(0,0,0,0.2)",
-          color: "white",
-        }}
+        placeholder="Paste Solana address"
+        style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #333" }}
         disabled={loading}
       />
 
       <div style={{ marginTop: 14 }}>
         <button
           onClick={save}
-          disabled={loading}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.2)",
-            background: "rgba(255,255,255,0.08)",
-            color: "white",
-            cursor: "pointer",
-          }}
+          disabled={loading || !supabase}
+          style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
         >
           Save
         </button>
       </div>
 
-      {msg && <div style={{ marginTop: 14, opacity: 0.9 }}>{msg}</div>}
+      {msg && <div style={{ marginTop: 14 }}>{msg}</div>}
     </div>
   );
 }
