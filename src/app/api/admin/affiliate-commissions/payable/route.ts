@@ -1,16 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-export async function GET() {
+// Admin-token gate (reuse existing token)
+function requireAdmin(req: NextRequest) {
+  const token = req.headers.get("x-admin-token") || "";
+  const expected = process.env.ADMIN_FORCE_CONFIRM_TOKEN || "";
+  if (!expected) return { ok: false as const, status: 500, error: "ADMIN_FORCE_CONFIRM_TOKEN is not set" };
+  if (token !== expected) return { ok: false as const, status: 401, error: "Unauthorized" };
+  return { ok: true as const };
+}
+
+export async function GET(req: NextRequest) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
+    // Include pending + payable (fast ops). You can tighten to approved/payable later.
     const { data, error } = await supabase
       .from("affiliate_commissions")
       .select("id,intent_id,level,ref_code,usdc_atomic,status,payable_at,created_at,paid_at,paid_tx")
-      .eq("status", "payable")
+      .in("status", ["pending", "payable"])
       .order("created_at", { ascending: true })
       .limit(500);
 
@@ -20,6 +35,9 @@ export async function GET() {
 
     return NextResponse.json({ ok: true, rows: data || [] });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Unexpected server error" },
+      { status: 500 }
+    );
   }
 }
