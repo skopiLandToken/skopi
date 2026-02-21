@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAccount } from "@solana/spl-token";
+import { getAccount, getMint } from "@solana/spl-token";
 
 function mustEnv(name: string): string {
   const v = process.env[name];
@@ -22,7 +22,8 @@ export async function GET() {
 
     const connection = new Connection(rpcUrl, "confirmed");
 
-    const [supplyResp, t0, t1, s, f, l, c] = await Promise.all([
+    const [mintInfo, supplyResp, t0, t1, s, f, l, c] = await Promise.all([
+      getMint(connection, mint),
       connection.getTokenSupply(mint),
       getAccount(connection, treasuryAta),
       getAccount(connection, treasuryBucketAta),
@@ -36,6 +37,8 @@ export async function GET() {
       ok: true,
       rpcUrl,
       mint: mint.toBase58(),
+      mintAuthority: mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : null,
+      freezeAuthority: mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : null,
       decimals: supplyResp.value.decimals,
       supplyUi: supplyResp.value.uiAmountString,
       accounts: {
