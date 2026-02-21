@@ -42,7 +42,7 @@ export default async function TokenProofPage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 980, margin: "0 auto", fontFamily: "ui-sans-serif, system-ui" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>SKOpi Token Proof (Localnet)</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700 }}>SKOpi Token Proof (Mainnet)</h1>
       <p style={{ marginTop: 8, opacity: 0.8 }}>
         RPC: <code>{data.rpcUrl}</code>
         <br />
