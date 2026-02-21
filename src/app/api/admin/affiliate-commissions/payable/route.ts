@@ -5,7 +5,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-// Admin-token gate (reuse existing token)
 function requireAdmin(req: NextRequest) {
   const token = req.headers.get("x-admin-token") || "";
   const expected = process.env.ADMIN_FORCE_CONFIRM_TOKEN || "";
@@ -16,15 +15,18 @@ function requireAdmin(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const auth = requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
 
   try {
-    // Include pending + payable (fast ops). You can tighten to approved/payable later.
+    // Join marketing_partners to attach payout wallet for each ref_code
     const { data, error } = await supabase
       .from("affiliate_commissions")
-      .select("id,intent_id,level,ref_code,usdc_atomic,status,payable_at,created_at,paid_at,paid_tx")
+      .select(`
+        id,intent_id,level,ref_code,usdc_atomic,status,payable_at,created_at,paid_at,paid_tx,
+        marketing_partners:ref_code (
+          payout_wallet_address
+        )
+      `)
       .in("status", ["pending", "payable"])
       .order("created_at", { ascending: true })
       .limit(500);
@@ -33,11 +35,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, rows: data || [] });
+    // Flatten wallet field for the payout script
+    const rows = (data || []).map((r: any) => ({
+      ...r,
+      payout_wallet_address: r?.marketing_partners?.payout_wallet_address || null,
+    }));
+
+    return NextResponse.json({ ok: true, rows });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unexpected server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unexpected server error" }, { status: 500 });
   }
 }
