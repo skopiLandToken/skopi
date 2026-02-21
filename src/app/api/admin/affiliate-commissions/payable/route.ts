@@ -18,31 +18,49 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
 
   try {
-    // Join marketing_partners to attach payout wallet for each ref_code
-    const { data, error } = await supabase
+    // 1) Fetch payable rows (pending + payable)
+    const { data: comms, error: commErr } = await supabase
       .from("affiliate_commissions")
-      .select(`
-        id,intent_id,level,ref_code,usdc_atomic,status,payable_at,created_at,paid_at,paid_tx,
-        marketing_partners:ref_code (
-          payout_wallet_address
-        )
-      `)
+      .select("id,intent_id,level,ref_code,usdc_atomic,status,payable_at,created_at,paid_at,paid_tx")
       .in("status", ["pending", "payable"])
       .order("created_at", { ascending: true })
       .limit(500);
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (commErr) {
+      return NextResponse.json({ ok: false, error: commErr.message }, { status: 500 });
     }
 
-    // Flatten wallet field for the payout script
-    const rows = (data || []).map((r: any) => ({
+    const rows = comms || [];
+    const refCodes = [...new Set(rows.map((r: any) => r.ref_code).filter(Boolean))];
+
+    // 2) Fetch payout wallets for those ref codes
+    let walletsByRef: Record<string, string | null> = {};
+    if (refCodes.length) {
+      const { data: partners, error: mpErr } = await supabase
+        .from("marketing_partners")
+        .select("referral_code,payout_wallet_address")
+        .in("referral_code", refCodes);
+
+      if (mpErr) {
+        return NextResponse.json({ ok: false, error: mpErr.message }, { status: 500 });
+      }
+
+      walletsByRef = Object.fromEntries(
+        (partners || []).map((p: any) => [p.referral_code, p.payout_wallet_address ?? null])
+      );
+    }
+
+    // 3) Merge wallet onto rows
+    const merged = rows.map((r: any) => ({
       ...r,
-      payout_wallet_address: r?.marketing_partners?.payout_wallet_address || null,
+      payout_wallet_address: walletsByRef[r.ref_code] ?? null,
     }));
 
-    return NextResponse.json({ ok: true, rows });
+    return NextResponse.json({ ok: true, rows: merged });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Unexpected server error" },
+      { status: 500 }
+    );
   }
 }
