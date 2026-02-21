@@ -48,3 +48,6 @@ node_modules
 .openclaw_grep_hits.txt
 PROJECT_SCAN_INDEX.md
 local_scan_skopi.sh
+
+# Vercel backups
+.vercel.bak*
