@@ -1,0 +1,13 @@
+{
+  "name": "SKOpi",
+  "symbol": "SKOPI",
+  "description": "SKOpi is a utility token designed to power SKOpi.io — a transparent, on-chain system for funding and redeeming real-world home inventory credits.",
+  "image": "https://app.skopi.io/skopi-coin.png",
+  "external_url": "https://skopi.io",
+  "properties": {
+    "category": "image",
+    "files": [
+      { "uri": "https://app.skopi.io/skopi-coin.png", "type": "image/png" }
+    ]
+  }
+}
