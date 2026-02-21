@@ -48,6 +48,12 @@ export default async function TokenProofPage() {
         <br />
         Mint: <code>{data.mint}</code>
         <br />
+        Mint authority: <strong>{data.mintAuthority ? data.mintAuthority : "DISABLED"}</strong>
+        <br />
+        Freeze authority: <strong>{data.freezeAuthority ? data.freezeAuthority : "NOT SET"}</strong>
+        <br />
+        Lock tx: <code>2AriaasEZ1347UKxugdXQRwjvqKrpxYBUVS1EcUU6GrBi6UCYH6Exu59ubnze8D9rGWtxBz8iHK7efB8JBRQeHoW</code>
+        <br />
         Supply: <strong>{data.supplyUi}</strong> (decimals: {d})
       </p>
 
