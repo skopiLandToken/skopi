@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type Touch = {
   source?: string | null;
@@ -91,14 +92,26 @@ export default function BuyPage() {
         throw new Error("Enter a valid amount greater than 0");
       }
 
+      // --- NEW: require login + send Bearer token ---
+      const supabase = supabaseBrowser();
+      const { data: sess, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw new Error(sessErr.message);
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("You must be logged in to create a purchase intent.");
+      // --- END NEW ---
+
       const firstTouch = readTouch("skopi_first_touch");
       const lastTouch = readTouch("skopi_last_touch");
       const refCode = readRefCodeFromUrl();
 
       const res = await fetch("/api/purchase-intents", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
+          // keep your existing payload shape
           amountUsdc,
           refCode: refCode || null,
           walletAddress: walletAddress || null,
@@ -218,109 +231,67 @@ export default function BuyPage() {
 
         <label style={{ display: "block", marginBottom: 8 }}>Wallet Address (optional for now)</label>
         <input
-          type="text"
           value={walletAddress}
           onChange={(e) => setWalletAddress(e.target.value)}
-          placeholder="Your Solana wallet address"
+          placeholder="Solana wallet address"
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
         />
 
         <button
           onClick={createIntent}
           disabled={loading}
-          style={{ padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", background: "#111", color: "#fff" }}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #333", cursor: "pointer" }}
         >
-          {loading ? "Creating..." : "Create Purchase Intent"}
+          {loading ? "Creating..." : "Create Intent"}
         </button>
+
+        {error && <div style={{ marginTop: 12, color: "crimson" }}>{error}</div>}
+
+        {intent && (
+          <div style={{ marginTop: 16, padding: 12, border: "1px solid #eee", borderRadius: 10 }}>
+            <div><strong>Intent ID:</strong> <code>{intent.id}</code> <button onClick={() => copyText(intent.id, "Intent ID")}>Copy</button></div>
+            <div><strong>Status:</strong> {intent.status}</div>
+            <div><strong>USDC:</strong> {humanUsdc(intent.amount_usdc_atomic)}</div>
+            <div><strong>Solana Pay:</strong> <a href={payUrl}>{payUrl}</a></div>
+          </div>
+        )}
       </div>
 
-      {error && (
-        <div style={{ border: "1px solid #f5b5b5", background: "#fff5f5", color: "#8a1c1c", borderRadius: 12, padding: 12, marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      {intent && (
-        <div style={{ border: "1px solid #cce7d0", background: "#f3fff5", borderRadius: 12, padding: 16, marginBottom: 20 }}>
-          <h2 style={{ marginTop: 0 }}>2) Pay with Wallet ✅</h2>
-          <p><strong>Intent ID:</strong> {intent.id}</p>
-          <p><strong>Status:</strong> {intent.status}</p>
-          <p><strong>Amount:</strong> {humanUsdc(intent.amount_usdc_atomic)} USDC</p>
-          <p><strong>Treasury:</strong> {intent.treasury_address}</p>
-          <p><strong>Reference:</strong> {intent.reference_pubkey}</p>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button onClick={() => copyText(intent.treasury_address, "Treasury address")}>Copy Treasury</button>
-            <button onClick={() => copyText(intent.reference_pubkey, "Reference")}>Copy Reference</button>
-            <button onClick={() => copyText(payUrl, "Payment URL")}>Copy Payment URL</button>
-            <a href={payUrl} style={{ padding: "6px 10px", border: "1px solid #222", borderRadius: 6, textDecoration: "none" }}>
-              Open in Wallet
-            </a>
-          </div>
-
-          <p style={{ marginTop: 12, marginBottom: 10 }}>
-            <a href={`/receipt/${intent.id}`} style={{ textDecoration: "underline" }}>
-              Open Receipt Page
-            </a>
-          </p>
-
-          <p style={{ marginTop: 0, marginBottom: 0 }}>
-            ⚠️ Send the <strong>exact USDC amount</strong> with this reference.
-          </p>
-        </div>
-      )}
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
-        <h2 style={{ marginTop: 0 }}>3) Check Payment Status</h2>
-
-        <label style={{ display: "block", marginBottom: 8 }}>Intent ID</label>
+      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <h2 style={{ marginTop: 0 }}>2) Check Status</h2>
         <input
-          type="text"
           value={statusIntentId}
           onChange={(e) => setStatusIntentId(e.target.value)}
-          placeholder="Paste intent ID"
+          placeholder="Intent ID"
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
         />
+        <button
+          onClick={checkStatus}
+          disabled={statusLoading}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #333", cursor: "pointer" }}
+        >
+          {statusLoading ? "Checking..." : "Check Status"}
+        </button>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={checkStatus}
-            disabled={statusLoading}
-            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #222", cursor: "pointer", background: "#fff" }}
-          >
-            {statusLoading ? "Checking..." : "Check Status"}
-          </button>
-
-          <button
-            onClick={verifyOnChain}
-            disabled={verifyLoading}
-            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #222", cursor: "pointer", background: "#111", color: "#fff" }}
-          >
-            {verifyLoading ? "Verifying..." : "Verify On-Chain Payment"}
-          </button>
-        </div>
-
-        {verifyMsg && (
-          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#f7f7f7" }}>
-            {verifyMsg}
-          </div>
-        )}
-
-        {statusError && (
-          <div style={{ border: "1px solid #f5b5b5", background: "#fff5f5", color: "#8a1c1c", borderRadius: 12, padding: 12, marginTop: 12 }}>
-            {statusError}
-          </div>
-        )}
-
+        {statusError && <div style={{ marginTop: 12, color: "crimson" }}>{statusError}</div>}
         {statusData && (
-          <div style={{ border: "1px solid #cce7d0", background: "#f3fff5", borderRadius: 12, padding: 12, marginTop: 12 }}>
-            <p><strong>Status:</strong> {statusData.status}</p>
-            <p><strong>Intent ID:</strong> {statusData.id}</p>
-            <p><strong>Amount:</strong> {humanUsdc(statusData.amount_usdc_atomic)} USDC</p>
-            <p><strong>Reference:</strong> {statusData.reference_pubkey}</p>
-            <p><strong>Tx Signature:</strong> {statusData.tx_signature || "Not confirmed yet"}</p>
+          <div style={{ marginTop: 12 }}>
+            <div><strong>Status:</strong> {statusData.status}</div>
+            <div><strong>Tx Signature:</strong> {statusData.tx_signature || "Not confirmed yet"}</div>
           </div>
         )}
+      </div>
+
+      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+        <h2 style={{ marginTop: 0 }}>3) Verify On-Chain Payment</h2>
+        <button
+          onClick={verifyOnChain}
+          disabled={verifyLoading}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #333", cursor: "pointer" }}
+        >
+          {verifyLoading ? "Verifying..." : "Verify On-Chain Payment"}
+        </button>
+        {verifyMsg && <div style={{ marginTop: 12 }}>{verifyMsg}</div>}
       </div>
     </main>
   );
