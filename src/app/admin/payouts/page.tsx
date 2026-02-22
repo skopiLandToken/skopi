@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
 
