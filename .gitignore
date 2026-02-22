@@ -51,3 +51,6 @@ local_scan_skopi.sh
 
 # Vercel backups
 .vercel.bak*
+
+# local payout exports
+payout_batches/
