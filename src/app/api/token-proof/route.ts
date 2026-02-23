@@ -23,7 +23,7 @@ export async function GET() {
     const connection = new Connection(rpcUrl, "confirmed");
 
     const [mintInfo, supplyResp, t0, t1, s, f, l, c] = await Promise.all([
-      (connection, mint),
+      connection.getParsedAccountInfo(mint),
       connection.getTokenSupply(mint),
       getAccount(connection, treasuryAta),
       getAccount(connection, treasuryBucketAta),
