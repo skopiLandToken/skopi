@@ -54,3 +54,4 @@ local_scan_skopi.sh
 
 # local payout exports
 payout_batches/
+_scratch/
