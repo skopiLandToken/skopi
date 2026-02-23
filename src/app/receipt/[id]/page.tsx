@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import VerifyButton from "../components/verify-button";
+import VerifyRealButton from "../components/verify-real-button";
 
 export const dynamic = "force-dynamic";
 
@@ -75,8 +76,9 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <VerifyButton intentId={intent.id} />
+        <VerifyRealButton intentId={intent.id} />
       </div>
     </main>
   );
