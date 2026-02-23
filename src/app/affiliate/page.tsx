@@ -1,10 +1,11 @@
+
 import { supabaseServer } from "@/lib/supabase";
+import { Container, Card, Button, Pill } from "../components/ui";
 
 export const dynamic = "force-dynamic";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.skopi.io";
 
-// USDC atomic -> display
 function atomicToUsdc(atomic: bigint) {
   const s = atomic.toString().padStart(7, "0");
   const whole = s.slice(0, -6);
@@ -14,36 +15,35 @@ function atomicToUsdc(atomic: bigint) {
 
 export default async function AffiliatePage() {
   const supabase = supabaseServer();
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
 
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id;
-
-  if (!userId) {
+  if (!user?.id) {
     return (
-      <main style={{ padding: 24, maxWidth: 780, margin: "0 auto" }}>
-        <h1 style={{ margin: 0 }}>Affiliate</h1>
-        <p style={{ marginTop: 10 }}>
-          You must be logged in. Go to <a href="/login">/login</a>.
-        </p>
-      </main>
+      <Container>
+        <Card title="Affiliate" subtitle="You must be logged in to view your affiliate dashboard.">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button href="/login">Login</Button>
+            <Button href="/sale" variant="secondary">Go to Sale</Button>
+          </div>
+        </Card>
+      </Container>
     );
   }
 
   const { data: affiliate, error: affErr } = await supabase
     .from("affiliates")
     .select("ref_code,created_at")
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .single();
 
   if (affErr || !affiliate?.ref_code) {
     return (
-      <main style={{ padding: 24, maxWidth: 780, margin: "0 auto" }}>
-        <h1 style={{ margin: 0 }}>Affiliate</h1>
-        <p style={{ marginTop: 10 }}>Could not load your affiliate profile.</p>
-        <pre style={{ whiteSpace: "pre-wrap", background: "#f6f6f6", padding: 12, borderRadius: 12 }}>
-          {JSON.stringify(affErr, null, 2)}
-        </pre>
-      </main>
+      <Container>
+        <Card title="Affiliate" subtitle="Could not load your affiliate profile.">
+          <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(affErr, null, 2)}</pre>
+        </Card>
+      </Container>
     );
   }
 
@@ -64,100 +64,78 @@ export default async function AffiliatePage() {
   const paidSum = paid.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), 0n);
 
   return (
-    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+    <Container>
+      <div style={{ display: "grid", gap: 14 }}>
         <div>
           <h1 style={{ margin: 0 }}>Affiliate Dashboard</h1>
-          <p style={{ marginTop: 8, opacity: 0.85 }}>
+          <div style={{ marginTop: 8, opacity: 0.85 }}>
             Share your link. Earnings update when purchases confirm.
-          </p>
-        </div>
-        <div style={{ fontSize: 14 }}>
-          <a href="/logout" style={{ textDecoration: "none" }}>Logout</a>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Your Ref Code</div>
-          <div style={{ fontFamily: "monospace", marginTop: 8 }}>{refCode}</div>
-        </div>
-
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Your Referral Link</div>
-          <div style={{ fontFamily: "monospace", marginTop: 8, wordBreak: "break-all" }}>{refLink}</div>
-        </div>
-
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Pending (USDC)</div>
-          <div style={{ fontFamily: "monospace", marginTop: 8, fontSize: 18 }}>{atomicToUsdc(pendingSum)}</div>
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>{pending.length} rows</div>
-        </div>
-
-        <div style={card}>
-          <div style={{ fontWeight: 700 }}>Paid (USDC)</div>
-          <div style={{ fontFamily: "monospace", marginTop: 8, fontSize: 18 }}>{atomicToUsdc(paidSum)}</div>
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>{paid.length} rows</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 18, ...card }}>
-        <div style={{ fontWeight: 700 }}>Recent Commissions</div>
-
-        {rowsErr ? (
-          <pre style={{ whiteSpace: "pre-wrap", background: "#f6f6f6", padding: 12, borderRadius: 12, marginTop: 10 }}>
-            {JSON.stringify(rowsErr, null, 2)}
-          </pre>
-        ) : null}
-
-        <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "150px 90px 140px 1fr 160px",
-            padding: "10px 12px",
-            background: "#f6f6f6",
-            fontWeight: 700,
-            fontSize: 13
-          }}>
-            <div>Date</div>
-            <div>Level</div>
-            <div>Status</div>
-            <div>Intent</div>
-            <div>USDC</div>
           </div>
-
-          {(rows ?? []).map((r: any) => (
-            <div key={r.id} style={{
-              display: "grid",
-              gridTemplateColumns: "150px 90px 140px 1fr 160px",
-              padding: "10px 12px",
-              borderTop: "1px solid #eee",
-              fontSize: 13,
-              alignItems: "center"
-            }}>
-              <div>{new Date(r.created_at).toLocaleDateString()}</div>
-              <div>{r.level}</div>
-              <div>{r.status}{r.paid_at ? " ✅" : ""}</div>
-              <div style={{ fontFamily: "monospace" }}>
-                <a href={`/receipt/${r.intent_id}`} style={{ textDecoration: "none" }}>
-                  {String(r.intent_id).slice(0, 8)}…
-                </a>
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{atomicToUsdc(BigInt(r.usdc_atomic ?? 0))}</div>
-            </div>
-          ))}
-
-          {(rows ?? []).length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.75 }}>No commissions yet.</div>
-          ) : null}
+          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <Pill text={`ref: ${refCode}`} />
+            <Button href="/sale" variant="secondary">Open Sale</Button>
+            <Button href="/me/purchases" variant="secondary">My Purchases</Button>
+          </div>
         </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+          <Card title="Your referral link" subtitle="Copy + share this.">
+            <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 12 }}>
+              {refLink}
+            </div>
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button href={refLink}>Open link</Button>
+              <Button href="/sale" variant="ghost">Back to Sale</Button>
+            </div>
+          </Card>
+
+          <Card title="Pending (USDC)" subtitle={`${pending.length} rows`}>
+            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 800 }}>
+              {atomicToUsdc(pendingSum)}
+            </div>
+          </Card>
+
+          <Card title="Paid (USDC)" subtitle={`${paid.length} rows`}>
+            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 800 }}>
+              {atomicToUsdc(paidSum)}
+            </div>
+          </Card>
+        </div>
+
+        <Card title="Recent commissions" subtitle="Latest 50 rows">
+          {rowsErr ? (
+            <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(rowsErr, null, 2)}</pre>
+          ) : null}
+
+          <div style={{ marginTop: 10, border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "140px 90px 120px 1fr 160px", padding: "10px 12px", background: "#f6f6f6", fontWeight: 800, fontSize: 13 }}>
+              <div>Date</div>
+              <div>Level</div>
+              <div>Status</div>
+              <div>Intent</div>
+              <div>USDC</div>
+            </div>
+
+            {(rows ?? []).map((r: any) => (
+              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "140px 90px 120px 1fr 160px", padding: "10px 12px", borderTop: "1px solid #eee", fontSize: 13, alignItems: "center" }}>
+                <div>{new Date(r.created_at).toLocaleDateString()}</div>
+                <div>{r.level}</div>
+                <div>{r.status}{r.paid_at ? " ✅" : ""}</div>
+                <div style={{ fontFamily: "monospace" }}>
+                  <a href={`/receipt/${r.intent_id}`} style={{ textDecoration: "none" }}>
+                    {String(r.intent_id).slice(0, 8)}…
+                  </a>
+                </div>
+                <div style={{ fontFamily: "monospace" }}>{atomicToUsdc(BigInt(r.usdc_atomic ?? 0))}</div>
+              </div>
+            ))}
+
+            {(rows ?? []).length === 0 ? (
+              <div style={{ padding: 12, opacity: 0.75 }}>No commissions yet.</div>
+            ) : null}
+          </div>
+        </Card>
       </div>
-    </main>
+    </Container>
   );
 }
-
-const card: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 14,
-  padding: 14,
-};

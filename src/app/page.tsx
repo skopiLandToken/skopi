@@ -1,66 +1,64 @@
-import Image from "next/image";
-import styles from "./page.module.css";
 
-export default function Home() {
+import { Container, Card, Button } from "./components/ui";
+import Nav from "./components/Nav";
+
+export default async function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
+    <>
+      {/* Nav is already in layout, but keeping pages simple */}
+      <Container>
+        <div style={{ display: "grid", gap: 14 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3 }}>SKOpi Portal</h1>
+            <div style={{ marginTop: 8, opacity: 0.85, maxWidth: 760 }}>
+              Buy SKOpi, track your purchases, and (if you’re an affiliate) share your link and see earnings.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+            <Card
+              title="Buy SKOpi"
+              subtitle="Pick a tranche, choose an amount, pay with Phantom."
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button href="/sale">Open Sale</Button>
+                <Button href="/me/purchases" variant="secondary">My Purchases</Button>
+              </div>
+            </Card>
+
+            <Card
+              title="Affiliate"
+              subtitle="Get your referral link + view pending/paid earnings."
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button href="/affiliate">Affiliate Dashboard</Button>
+                <Button href="/sale" variant="secondary">Share Sale Link</Button>
+              </div>
+            </Card>
+
+            <Card
+              title="Account"
+              subtitle="Login / logout to access your dashboard pages."
+            >
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button href="/login" variant="secondary">Login</Button>
+                <Button href="/logout" variant="ghost">Logout</Button>
+              </div>
+            </Card>
+          </div>
+
+          <Card
+            title="How it works"
+            subtitle="Short version so users don’t get lost."
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8, opacity: 0.9 }}>
+              <li>Go to <b>Sale</b>, pick an amount.</li>
+              <li>You’ll land on a <b>Receipt</b> with payment instructions.</li>
+              <li>Click <b>Pay with Phantom</b>, then <b>Verify</b>.</li>
+              <li>Track status in <b>My Purchases</b>. Affiliates track earnings in <b>Affiliate</b>.</li>
+            </ol>
+          </Card>
         </div>
-      </main>
-    </div>
+      </Container>
+    </>
   );
-}
