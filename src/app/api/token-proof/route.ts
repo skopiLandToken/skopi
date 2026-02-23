@@ -34,7 +34,8 @@ export async function GET() {
     ]);
 
     // mintInfo is getParsedAccountInfo result
-    const mintParsed: any = mintInfo?.value?.data?.parsed?.info || {};
+    const mintData: any = mintInfo?.value?.data as any;
+    const mintParsed: any = mintData?.parsed?.info || {};
     const mintDecimals = Number(mintParsed?.decimals ?? 0);
 
 
