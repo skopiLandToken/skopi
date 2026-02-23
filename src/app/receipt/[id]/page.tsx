@@ -40,6 +40,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         <div><b>Tranche:</b> {intent.tranche_id}</div>
         <div><b>Price used:</b> {intent.price_usdc_used} USDC</div>
         <div><b>Tokens:</b> {intent.tokens_skopi} SKOPI</div>
+
         <div style={{ marginTop: 10 }}><b>Reference pubkey:</b></div>
         <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 8 }}>
           {intent.reference_pubkey}
@@ -55,10 +56,26 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       </div>
 
       <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fafafa", border: "1px solid #eee" }}>
-        <b>Next step:</b> Send the USDC payment using the <b>reference pubkey</b> above.
+        <b>Next step:</b> In production this button will verify your USDC transfer on-chain.
         <div style={{ marginTop: 8 }}>
-          Then refresh this page after payment, or use your existing verify/confirm flow.
+          For now it uses <b>test mode</b> and requires <code>x-admin-token</code>.
         </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <form action={`/api/verify/${intent.id}`} method="POST">
+          <button
+            type="submit"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #111",
+              cursor: "pointer",
+            }}
+          >
+            Verify payment (test mode)
+          </button>
+        </form>
       </div>
     </main>
   );
