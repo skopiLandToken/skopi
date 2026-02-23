@@ -23,7 +23,7 @@ export async function GET() {
     const connection = new Connection(rpcUrl, "confirmed");
 
     const [mintInfo, supplyResp, t0, t1, s, f, l, c] = await Promise.all([
-      getMint(connection, mint),
+      (connection, mint),
       connection.getTokenSupply(mint),
       getAccount(connection, treasuryAta),
       getAccount(connection, treasuryBucketAta),
@@ -32,6 +32,11 @@ export async function GET() {
       getAccount(connection, liqAta),
       getAccount(connection, commAta),
     ]);
+
+    // mintInfo is getParsedAccountInfo result
+    const mintParsed: any = mintInfo?.value?.data?.parsed?.info || {};
+    const mintDecimals = Number(mintParsed?.decimals ?? 0);
+
 
     const result = {
       ok: true,
