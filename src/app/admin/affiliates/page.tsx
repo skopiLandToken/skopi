@@ -49,7 +49,7 @@ export default async function AdminAffiliatesPage() {
         .eq(REF_FIELD as any, a.ref_code);
 
       const tokensTotal = (tokenRows ?? []).reduce(
-        (sum, r: any) => sum + Number(r.tokens_skopi ?? 0),
+        (sum: number, r: any) => sum + Number(r.tokens_skopi ?? 0),
         0
       );
 
