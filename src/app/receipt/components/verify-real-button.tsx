@@ -19,7 +19,10 @@ export default function VerifyRealButton({ intentId }: { intentId: string }) {
         return;
       }
 
-      setMsg(json?.implemented ? "Verified ✅" : (json?.message || "Coming soon"));
+      setMsg(json?.implemented ? "Verified ✅ (refreshing…)" : (json?.message || "Coming soon"));
+      if (json?.implemented && json?.found) {
+        setTimeout(() => window.location.reload(), 700);
+      }
     } catch (e: any) {
       setMsg(e?.message || "Error");
     } finally {
