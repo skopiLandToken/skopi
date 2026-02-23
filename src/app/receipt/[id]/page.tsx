@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { Container, Card, Button, Pill } from "../../components/ui";
+import CopyButton from "../../components/CopyButton";
 import PayPhantomButton from "../components/pay-phantom-button";
 import VerifyRealButton from "../components/verify-real-button";
 import VerifyButton from "../components/verify-button";
@@ -97,6 +98,9 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
             <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 12 }}>
               {intent.reference_pubkey}
             </div>
+            <div style={{ marginTop: 10 }}>
+              <CopyButton value={String(intent.reference_pubkey)} label="Copy reference" />
+            </div>
           </div>
 
           {intent.tx_signature ? (
@@ -134,7 +138,9 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
 
           <div style={{ marginTop: 12, display: "grid", gap: 8, fontSize: 13, opacity: 0.85 }}>
             <div><b>Treasury:</b> <span style={{ fontFamily: "monospace" }}>{TREASURY || "MISSING ENV"}</span></div>
+            <div style={{ marginTop: 8 }}><CopyButton value={TREASURY} label="Copy treasury" /></div>
             <div><b>USDC Mint:</b> <span style={{ fontFamily: "monospace" }}>{USDC_MINT || "MISSING ENV"}</span></div>
+            <div style={{ marginTop: 8 }}><CopyButton value={USDC_MINT} label="Copy USDC mint" /></div>
           </div>
         </Card>
 

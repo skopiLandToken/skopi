@@ -1,6 +1,7 @@
 
 import { supabaseServer } from "@/lib/supabase";
 import { Container, Card, Button, Pill } from "../components/ui";
+import CopyButton from "../components/CopyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,8 @@ export default async function AffiliatePage() {
             <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 12 }}>
               {refLink}
             </div>
-            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <CopyButton value={refLink} label="Copy link" />
               <Button href={refLink}>Open link</Button>
               <Button href="/sale" variant="ghost">Back to Sale</Button>
             </div>
