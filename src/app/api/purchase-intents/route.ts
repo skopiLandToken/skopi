@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     const atomic = amountUsdc !== null ? toAtomic(amountUsdc) : amount_usdc_atomic;
 
-    if (atomic === null || atomic <= 0n) {
+    if (atomic === null || atomic <= BigInt(0)) {
       return NextResponse.json(
         { ok: false, error: "Invalid amount. Provide amountUsdc (number) > 0." },
         { status: 400 }
