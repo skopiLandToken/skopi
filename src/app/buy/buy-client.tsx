@@ -1,133 +1,86 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-function clampAmount(n: number) {
-  if (!Number.isFinite(n)) return 0;
-  if (n < 1) return 1;
-  if (n > 100000) return 100000;
-  return n;
+function getParam(name: string) {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get(name) || "";
 }
 
-export default function BuyClient({
-  initialAmount,
-  initialRefCode,
-  nextPath,
-}: {
-  initialAmount: number;
-  initialRefCode: string;
-  nextPath: string;
-}) {
-  const router = useRouter();
-
-  const [amountUsdc, setAmountUsdc] = useState<number>(initialAmount || 10);
-  const [refCode, setRefCode] = useState<string>(initialRefCode || "");
+export default function BuyClient() {
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string>("");
+  const [err, setErr] = useState<string | null>(null);
 
-  const nextEncoded = useMemo(() => encodeURIComponent(nextPath), [nextPath]);
-
-  useEffect(() => {
-    // Keep amount safe
-    setAmountUsdc((v) => clampAmount(v || 10));
+  const amount = useMemo(() => {
+    const raw = getParam("amount");
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 10;
   }, []);
 
-  async function ensureSessionToken(): Promise<string | null> {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token || null;
-    return token;
-  }
+  const ref = useMemo(() => {
+    return getParam("ref").trim();
+  }, []);
 
-  async function onSubmit() {
-    setErr("");
+  async function createIntent() {
     setLoading(true);
-    try {
-      const token = await ensureSessionToken();
-      if (!token) {
-        router.push(`/auth/login?next=${nextEncoded}`);
-        return;
-      }
+    setErr(null);
 
+    try {
       const res = await fetch("/api/purchase-intents", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amountUsdc,
-          refCode: refCode.trim() || null,
+          amountUsdc: amount,
+          refCode: ref || null,
         }),
       });
 
-      const json = await res.json().catch(() => ({}));
-      if (!json?.ok) {
+      const json = await res.json();
+      if (!res.ok || !json?.ok || !json?.intent?.id) {
         setErr(json?.error || "Failed to create intent");
+        setLoading(false);
         return;
       }
 
-      const id = json?.intent?.id;
-      if (!id) {
-        setErr("Intent created but missing id");
-        return;
-      }
-
-      router.push(`/receipt/${id}`);
+      // Redirect to receipt
+      window.location.href = `/receipt/${json.intent.id}`;
     } catch (e: any) {
-      setErr(e?.message || "Unexpected error");
+      setErr(e?.message || "Error");
     } finally {
       setLoading(false);
     }
   }
 
+  useEffect(() => {
+    // Auto-create on page load for frictionless flow
+    createIntent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <main className="mx-auto max-w-xl px-6 py-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Buy SKOpi</h1>
-      <p className="mt-2 text-sm text-gray-600">
-        Enter an amount in USDC. We’ll create a purchase intent and send you to a receipt with payment instructions.
+    <main style={{ padding: 24, maxWidth: 760 }}>
+      <h1 style={{ margin: 0 }}>Creating your purchase…</h1>
+      <p style={{ marginTop: 8, opacity: 0.85 }}>
+        Amount: <b>${amount}</b> {ref ? <>• Ref: <b style={{ fontFamily: "monospace" }}>{ref}</b></> : null}
       </p>
 
-      <div className="mt-6 rounded-xl border bg-white p-5 shadow-sm">
-        <label className="block text-sm font-medium text-gray-700">Amount (USDC)</label>
-        <input
-          className="mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
-          type="number"
-          inputMode="decimal"
-          min={1}
-          step="1"
-          value={amountUsdc}
-          onChange={(e) => setAmountUsdc(clampAmount(Number(e.target.value)))}
-        />
+      {loading ? (
+        <p style={{ marginTop: 16 }}>Working…</p>
+      ) : null}
 
-        <label className="mt-4 block text-sm font-medium text-gray-700">Referral code (optional)</label>
-        <input
-          className="mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
-          placeholder="e.g. CCC"
-          value={refCode}
-          onChange={(e) => setRefCode(e.target.value)}
-        />
-
-        {err ? <div className="mt-4 text-sm text-red-600">{err}</div> : null}
-
-        <button
-          className="mt-5 w-full rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-          onClick={onSubmit}
-          disabled={loading}
-        >
-          {loading ? "Creating intent..." : "Continue"}
-        </button>
-
-        <p className="mt-3 text-xs text-gray-500">
-          If you’re not logged in, you’ll be redirected to login.
-        </p>
-      </div>
+      {err ? (
+        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, border: "1px solid #f00" }}>
+          <b>Error:</b> {err}
+          <div style={{ marginTop: 10 }}>
+            <button
+              onClick={createIntent}
+              style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #111", cursor: "pointer" }}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
