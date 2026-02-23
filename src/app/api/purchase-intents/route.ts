@@ -61,6 +61,29 @@ export async function POST(req: Request) {
     }
 
     const userId = userData.user.id;
+
+    // ✅ Rate limit: max 10 intents per hour per user
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error: countErr } = await supabase
+      .from("purchase_intents")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", oneHourAgo);
+
+    if (countErr) {
+      return NextResponse.json(
+        { ok: false, error: "Rate limit check failed", details: countErr.message },
+        { status: 500 }
+      );
+    }
+
+    if ((count ?? 0) >= 10) {
+      return NextResponse.json(
+        { ok: false, error: "Too many purchase attempts. Please wait and try again." },
+        { status: 429 }
+      );
+    }
+
     const refPubkey = reference_pubkey ?? Keypair.generate().publicKey.toBase58();
 
     // Create intent via RPC
@@ -78,7 +101,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Move to awaiting_payment immediately (more “real” flow)
+    // Move to awaiting_payment immediately
     const intentId = data?.id;
     if (intentId) {
       await supabase
@@ -87,7 +110,6 @@ export async function POST(req: Request) {
         .eq("id", intentId);
     }
 
-    // Return intent with reference_pubkey for UI
     return NextResponse.json({ ok: true, intent: data, reference_pubkey: refPubkey });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message ?? "Unknown error" }, { status: 500 });
