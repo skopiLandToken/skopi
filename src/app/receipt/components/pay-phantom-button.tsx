@@ -1,15 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-} from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  createTransferCheckedInstruction,
-} from "@solana/spl-token";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { getAssociatedTokenAddress, createTransferCheckedInstruction } from "@solana/spl-token";
 
 type PhantomProvider = {
   isPhantom?: boolean;
@@ -25,7 +18,6 @@ declare global {
 }
 
 function atomicToUiAmount(atomic: string | number) {
-  // USDC 6 decimals
   const a = BigInt(atomic as any);
   const s = a.toString().padStart(7, "0");
   const whole = s.slice(0, -6);
@@ -50,7 +42,7 @@ export default function PayPhantomButton(props: {
     try {
       const treasury = process.env.NEXT_PUBLIC_SKOPI_TREASURY_ADDRESS || "";
       const usdcMint = process.env.NEXT_PUBLIC_USDC_MINT || "";
-      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || process.env.HELIUS_RPC_URL || "";
+      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "";
 
       if (!treasury || !usdcMint) {
         setMsg("Missing NEXT_PUBLIC_SKOPI_TREASURY_ADDRESS or NEXT_PUBLIC_USDC_MINT");
@@ -58,7 +50,7 @@ export default function PayPhantomButton(props: {
         return;
       }
       if (!rpcUrl) {
-        setMsg("Missing NEXT_PUBLIC_SOLANA_RPC_URL (or HELIUS_RPC_URL) env var");
+        setMsg("Missing NEXT_PUBLIC_SOLANA_RPC_URL env var");
         setLoading(false);
         return;
       }
@@ -85,7 +77,6 @@ export default function PayPhantomButton(props: {
       const amountAtomic = BigInt(props.amountUsdcAtomic);
       const amountUi = atomicToUiAmount(props.amountUsdcAtomic);
 
-      // TransferChecked uses decimals=6 for USDC
       const ix = createTransferCheckedInstruction(
         fromAta,
         mint,
@@ -95,8 +86,7 @@ export default function PayPhantomButton(props: {
         6
       );
 
-      // ✅ Solana Pay reference pattern:
-      // Add reference as a readonly account key on the instruction.
+      // Attach reference as readonly account key (Solana Pay reference pattern)
       ix.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
 
       const tx = new Transaction().add(ix);
@@ -107,18 +97,27 @@ export default function PayPhantomButton(props: {
       setMsg(`Sending ${amountUi} USDC…`);
       const sent = await provider.signAndSendTransaction(tx);
       setSig(sent.signature);
-      setMsg("Sent ✅ Now verifying…");
 
-      const res = await fetch(`/api/verify-real/${props.intentId}`, { method: "POST" });
-      const json = await res.json();
+      // Auto verify with retries
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        setMsg(`Verifying… (try ${attempt}/3)`);
+        const res = await fetch(`/api/verify-real/${props.intentId}`, { method: "POST" });
+        const json = await res.json().catch(() => ({}));
 
-      if (!res.ok || !json?.ok) {
-        setMsg(json?.error || "Verify-real failed");
-        setLoading(false);
-        return;
+        if (res.ok && json?.ok && json?.found) {
+          setMsg("Verified ✅ Refreshing…");
+          setTimeout(() => window.location.reload(), 800);
+          return;
+        }
+
+        const lastMsg = json?.message || json?.error || "Not found yet — try again in a moment";
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 2000));
+          setMsg(lastMsg);
+        } else {
+          setMsg(lastMsg);
+        }
       }
-
-      setMsg(json?.found ? "Verified ✅" : (json?.message || "Not found yet — try again in a moment"));
     } catch (e: any) {
       setMsg(e?.message || "Error");
     } finally {
@@ -147,9 +146,7 @@ export default function PayPhantomButton(props: {
         </div>
       ) : null}
 
-      {msg ? (
-        <div style={{ fontSize: 13, opacity: 0.9 }}>{msg}</div>
-      ) : null}
+      {msg ? <div style={{ fontSize: 13, opacity: 0.9 }}>{msg}</div> : null}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { Container, Card, Button, Pill } from "../../components/ui";
-import CopyButton from "../../components/CopyButton";
 import PayPhantomButton from "../components/pay-phantom-button";
 import VerifyRealButton from "../components/verify-real-button";
 import VerifyButton from "../components/verify-button";
+import CopyButton from "../../components/CopyButton";
 import { supabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,6 @@ function isAdminEmail(email: string | null | undefined) {
 }
 
 export default async function ReceiptPage({ params }: { params: { id: string } }) {
-  // Load intent (service role is fine for rendering receipt details)
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -50,22 +49,20 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
     );
   }
 
-  // Determine admin (for showing test tools)
   const ssr = supabaseServer();
   const { data: userData } = await ssr.auth.getUser();
   const email = userData?.user?.email || null;
   const isAdmin = isAdminEmail(email);
 
   const status = String(intent.status || "");
+  const isConfirmed = status === "confirmed";
 
-  const stepPill = (n: number, text: string) => (
+  const stepHeader = (n: number, text: string) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
       <Pill text={`Step ${n}`} />
       <span style={{ fontWeight: 800 }}>{text}</span>
     </span>
   );
-
-  const isConfirmed = status === "confirmed";
 
   return (
     <Container>
@@ -81,11 +78,23 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        <Card
-          title="Summary"
-          subtitle="Your purchase details"
-          right={<Pill text={`${intent.tokens_skopi} SKOPI`} />}
-        >
+        {isConfirmed ? (
+          <div style={{ padding: 14, borderRadius: 16, border: "1px solid #0a0", background: "#f3fff5" }}>
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Confirmed ✅</div>
+            <div style={{ marginTop: 6, opacity: 0.85 }}>
+              Payment verified. You can view it anytime in <a href="/me/purchases">My Purchases</a>.
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: 14, borderRadius: 16, border: "1px solid #eee", background: "#fafafa" }}>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>Waiting for confirmation</div>
+            <div style={{ marginTop: 6, opacity: 0.85 }}>
+              After you pay, click Verify. If it doesn’t confirm instantly, wait ~10 seconds and try again.
+            </div>
+          </div>
+        )}
+
+        <Card title="Summary" subtitle="Your purchase details" right={<Pill text={`${intent.tokens_skopi} SKOPI`} />}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
             <div><b>Price used:</b> {intent.price_usdc_used} USDC</div>
             <div><b>Tranche:</b> {intent.tranche_id}</div>
@@ -119,11 +128,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           ) : null}
         </Card>
 
-        <Card
-          title={undefined}
-          subtitle={undefined}
-          right={stepPill(1, "Pay with Phantom")}
-        >
+        <Card title={undefined} subtitle={undefined} right={stepHeader(1, "Pay with Phantom")}>
           <div style={{ opacity: 0.85 }}>
             This will send USDC to the treasury and attach your reference key so the verifier can find it.
           </div>
@@ -138,19 +143,15 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
 
           <div style={{ marginTop: 12, display: "grid", gap: 8, fontSize: 13, opacity: 0.85 }}>
             <div><b>Treasury:</b> <span style={{ fontFamily: "monospace" }}>{TREASURY || "MISSING ENV"}</span></div>
-            <div style={{ marginTop: 8 }}><CopyButton value={TREASURY} label="Copy treasury" /></div>
+            <CopyButton value={TREASURY} label="Copy treasury" />
             <div><b>USDC Mint:</b> <span style={{ fontFamily: "monospace" }}>{USDC_MINT || "MISSING ENV"}</span></div>
-            <div style={{ marginTop: 8 }}><CopyButton value={USDC_MINT} label="Copy USDC mint" /></div>
+            <CopyButton value={USDC_MINT} label="Copy USDC mint" />
           </div>
         </Card>
 
-        <Card
-          title={undefined}
-          subtitle={undefined}
-          right={stepPill(2, "Verify on-chain")}
-        >
+        <Card title={undefined} subtitle={undefined} right={stepHeader(2, "Verify on-chain")}>
           <div style={{ opacity: 0.85 }}>
-            After sending, verify will scan recent treasury transactions and look for your reference key.
+            Verify will scan recent treasury transactions and look for your reference key.
           </div>
 
           <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -163,35 +164,18 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           </div>
         </Card>
 
-        <Card
-          title={undefined}
-          subtitle={undefined}
-          right={stepPill(3, "Done")}
-        >
+        <Card title={undefined} subtitle={undefined} right={stepHeader(3, "Done")}>
           {isConfirmed ? (
-            <>
-              <div style={{ fontWeight: 900, fontSize: 18 }}>Confirmed ✅</div>
-              <div style={{ marginTop: 8, opacity: 0.85 }}>
-                You can now track everything in My Purchases. If you used a referral code, commissions will appear for affiliates.
-              </div>
-
-              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button href="/me/purchases">My Purchases</Button>
-                <Button href="/affiliate" variant="secondary">Affiliate</Button>
-                <Button href="/sale" variant="secondary">Buy More</Button>
-              </div>
-            </>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button href="/me/purchases">My Purchases</Button>
+              <Button href="/affiliate" variant="secondary">Affiliate</Button>
+              <Button href="/sale" variant="secondary">Buy More</Button>
+            </div>
           ) : (
-            <>
-              <div style={{ opacity: 0.9 }}>
-                Not confirmed yet. Complete Step 1 (pay) then Step 2 (verify).
-              </div>
-
-              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button href="/me/purchases" variant="secondary">My Purchases</Button>
-                <Button href="/sale" variant="secondary">Back to Sale</Button>
-              </div>
-            </>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button href="/me/purchases" variant="secondary">My Purchases</Button>
+              <Button href="/sale" variant="secondary">Back to Sale</Button>
+            </div>
           )}
         </Card>
       </div>
