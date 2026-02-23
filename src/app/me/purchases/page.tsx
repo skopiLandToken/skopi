@@ -1,4 +1,4 @@
-import { supabaseServer } from "@/lib/supabase-browser";
+import { supabaseServer } from "@/lib/supabase-server";
 import { Container, Card, Button, Pill } from "../../components/ui";
 
 export const dynamic = "force-dynamic";

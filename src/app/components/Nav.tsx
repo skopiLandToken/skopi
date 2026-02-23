@@ -1,4 +1,4 @@
-import { supabaseServer } from "@/lib/supabase-browser";
+import { supabaseServer } from "@/lib/supabase-server";
 
 function isAdminEmail(email: string | null | undefined) {
   const allow = (process.env.ADMIN_EMAILS || "")

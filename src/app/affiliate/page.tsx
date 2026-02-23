@@ -1,5 +1,5 @@
 
-import { supabaseServer } from "@/lib/supabase-browser";
+import { supabaseServer } from "@/lib/supabase-server";
 import { Container, Card, Button, Pill } from "../components/ui";
 import CopyButton from "../components/CopyButton";
 

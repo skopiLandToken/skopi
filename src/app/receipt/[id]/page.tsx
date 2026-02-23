@@ -4,7 +4,7 @@ import PayPhantomButton from "../components/pay-phantom-button";
 import VerifyRealButton from "../components/verify-real-button";
 import VerifyButton from "../components/verify-button";
 import CopyButton from "../../components/CopyButton";
-import { supabaseServer } from "@/lib/supabase-browser";
+import { supabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
