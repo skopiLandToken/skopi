@@ -9,7 +9,8 @@ const TREASURY = process.env.NEXT_PUBLIC_SKOPI_TREASURY_ADDRESS || "";
 const USDC_MINT = process.env.NEXT_PUBLIC_USDC_MINT || "";
 
 const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "";
-const VERIFY_REAL_CAN_CONFIRM = (process.env.VERIFY_REAL_CAN_CONFIRM || "").toLowerCase() === "true";
+const VERIFY_REAL_CAN_CONFIRM =
+  (process.env.VERIFY_REAL_CAN_CONFIRM || "").toLowerCase() === "true";
 
 function atomicToUi(atomic: bigint) {
   const s = atomic.toString().padStart(7, "0");
@@ -18,10 +19,7 @@ function atomicToUi(atomic: bigint) {
   return Number(`${whole}.${frac}`);
 }
 
-export async function POST(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
     if (!TREASURY || !USDC_MINT) {
       return NextResponse.json(
@@ -52,119 +50,129 @@ export async function POST(
 
     const amountAtomic = BigInt(intent.amount_usdc_atomic ?? 0);
     const amountUi = atomicToUi(amountAtomic);
-    const ref = intent.reference_pubkey as string;
+    const reference = String(intent.reference_pubkey || "").trim();
+
+    if (!reference) {
+      return NextResponse.json({ ok: false, error: "Intent missing reference_pubkey" }, { status: 500 });
+    }
 
     const conn = new Connection(HELIUS_RPC_URL, "confirmed");
 
-    // Scan recent transactions involving TREASURY
     const treasuryPk = new PublicKey(TREASURY);
-    const sigs = await conn.getSignaturesForAddress(treasuryPk, { limit: 50 });
+    const sigs = await conn.getSignaturesForAddress(treasuryPk, { limit: 75 });
 
     if (!sigs.length) {
       return NextResponse.json({
         ok: true,
         implemented: true,
         found: false,
-        message: "No recent transactions found for treasury address (limit 50).",
+        message: "No recent transactions found for treasury address (limit 75).",
       });
     }
 
     const usdcMint = new PublicKey(USDC_MINT).toBase58();
 
-    // Look for a parsed USDC transfer to treasury matching amount
     for (const s of sigs) {
-      if (!s.signature) continue;
+      const sig = s.signature;
+      if (!sig) continue;
 
-      const tx = await conn.getParsedTransaction(s.signature, {
+      const tx = await conn.getParsedTransaction(sig, {
         maxSupportedTransactionVersion: 0,
         commitment: "confirmed",
       });
 
-      if (!tx?.meta) continue;
+      if (!tx?.transaction?.message) continue;
 
-      // Check all parsed instructions for token transfers
+      // ✅ Bulletproof reference check: reference must be in account keys
+      const accountKeys =
+        (tx.transaction.message.accountKeys || []).map((k: any) =>
+          (k.pubkey?.toBase58?.() ?? k.toBase58?.())
+        );
+
+      const hasReference = accountKeys.includes(reference);
+      if (!hasReference) continue;
+
+      // Confirm treasury is involved too (should be, since we scanned treasury sigs)
+      const touchesTreasury = accountKeys.includes(TREASURY);
+      if (!touchesTreasury) continue;
+
+      // Look for USDC transfer instruction with matching amount
       const instructions = tx.transaction.message.instructions as any[];
+
+      let matchedTransfer = false;
 
       for (const ix of instructions) {
         const parsed = ix?.parsed;
         const program = ix?.program;
-
         if (program !== "spl-token" || !parsed) continue;
         if (parsed?.type !== "transferChecked" && parsed?.type !== "transfer") continue;
 
         const info = parsed.info || {};
         const mint = info.mint;
 
-        // transferChecked includes mint; transfer might not
+        // transferChecked has mint; transfer may not
         if (mint && mint !== usdcMint) continue;
 
-        const dest = info.destination;
         const amount = info.tokenAmount?.uiAmount ?? Number(info.amount ?? 0);
-
-        // Destination might be token account not treasury wallet.
-        // BUT token transfers to treasury typically go to treasury's token account.
-        // We'll accept if any accountKeys include treasury AND amount matches.
-        const accountKeys = tx.transaction.message.accountKeys?.map((k: any) => k.pubkey?.toBase58?.() ?? k.toBase58?.()) ?? [];
-        const touchesTreasury = accountKeys.includes(TREASURY);
-
-        if (!touchesTreasury) continue;
         if (Number(amount) !== Number(amountUi)) continue;
 
-        // Optional: attempt to detect the reference key in memo/logs (depends on how you attach it)
-        // For now, just return the matching signature.
-        const foundSig = s.signature;
+        matchedTransfer = true;
+        break;
+      }
 
-        // Confirm + commit commissions only if enabled
-        if (VERIFY_REAL_CAN_CONFIRM) {
-          const { data: updated, error: updErr } = await supabase
-            .from("purchase_intents")
-            .update({
-              status: "confirmed",
-              confirmed_at: new Date().toISOString(),
-              tx_signature: foundSig,
-              updated_at: new Date().toISOString(),
-              failure_reason: null,
-            })
-            .eq("id", intent.id)
-            .select("id,status,confirmed_at,tx_signature")
-            .single();
+      if (!matchedTransfer) continue;
 
-          if (updErr) {
-            return NextResponse.json({
-              ok: true,
-              implemented: true,
-              found: true,
-              signature: foundSig,
-              confirm_ok: false,
-              confirm_error: updErr.message,
-            });
-          }
-
-          const { error: comErr } = await supabase.rpc("commit_affiliate_commissions", {
-            p_intent_id: intent.id,
-          });
-
-          return NextResponse.json({
-            ok: true,
-            implemented: true,
-            found: true,
-            signature: foundSig,
-            confirm_ok: true,
-            commissions_ok: !comErr,
-            commissions_error: comErr?.message || null,
-            intent: updated,
-          });
-        }
-
+      // ✅ We found a match: amount + treasury + reference account included
+      if (!VERIFY_REAL_CAN_CONFIRM) {
         return NextResponse.json({
           ok: true,
           implemented: true,
           found: true,
-          signature: foundSig,
+          signature: sig,
           message:
-            "Match found (amount + treasury involvement). Set VERIFY_REAL_CAN_CONFIRM=true to auto-confirm + commit commissions.",
+            "Match found (amount + treasury + reference). Set VERIFY_REAL_CAN_CONFIRM=true to auto-confirm + commit commissions.",
         });
       }
+
+      // Auto-confirm
+      const { data: updated, error: updErr } = await supabase
+        .from("purchase_intents")
+        .update({
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+          tx_signature: sig,
+          updated_at: new Date().toISOString(),
+          failure_reason: null,
+        })
+        .eq("id", intent.id)
+        .select("id,status,confirmed_at,tx_signature")
+        .single();
+
+      if (updErr) {
+        return NextResponse.json({
+          ok: true,
+          implemented: true,
+          found: true,
+          signature: sig,
+          confirm_ok: false,
+          confirm_error: updErr.message,
+        });
+      }
+
+      const { error: comErr } = await supabase.rpc("commit_affiliate_commissions", {
+        p_intent_id: intent.id,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        implemented: true,
+        found: true,
+        signature: sig,
+        confirm_ok: true,
+        commissions_ok: !comErr,
+        commissions_error: comErr?.message || null,
+        intent: updated,
+      });
     }
 
     return NextResponse.json({
@@ -172,12 +180,11 @@ export async function POST(
       implemented: true,
       found: false,
       message:
-        "No matching USDC transfer found in the last 50 treasury transactions. Increase scan limit or refine matching later.",
+        "No matching transaction found in recent treasury activity that includes the reference pubkey. (This is expected until your wallet send flow attaches the reference as an extra account.)",
+      hint:
+        "When you build the wallet payment step, ensure the transaction includes the reference pubkey as an additional account key (Solana Pay reference pattern).",
     });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
