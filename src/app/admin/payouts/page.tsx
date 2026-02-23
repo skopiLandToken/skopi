@@ -1,12 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import MarkPaidButton from "./mark-paid-button";
+import { Container, Card, Button } from "../../components/ui";
 
 export const dynamic = "force-dynamic";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-// USDC atomic -> display
 function atomicToUsdc(atomic: bigint) {
   const s = atomic.toString().padStart(7, "0");
   const whole = s.slice(0, -6);
@@ -28,14 +28,14 @@ export default async function AdminPayoutsPage() {
 
   if (error) {
     return (
-      <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-        <h1>Admin: Payouts</h1>
-        <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(error, null, 2)}</pre>
-      </main>
+      <Container>
+        <Card title="Admin: Payouts" subtitle="Could not load pending commissions.">
+          <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(error, null, 2)}</pre>
+        </Card>
+      </Container>
     );
   }
 
-  // Group by ref_code
   const map = new Map<string, { ref: string; count: number; sum: bigint }>();
   for (const r of rows ?? []) {
     const ref = r.ref_code as string;
@@ -49,53 +49,58 @@ export default async function AdminPayoutsPage() {
   const batches = Array.from(map.values()).sort((a, b) => Number(b.sum - a.sum));
 
   return (
-    <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-      <h1 style={{ margin: 0 }}>Admin: Payout Batches</h1>
-      <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Groups all <b>pending</b> affiliate_commissions by ref_code.
-      </p>
-
-      <div style={{ marginTop: 16, border: "1px solid #ddd", borderRadius: 16, overflow: "hidden" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "220px 160px 160px 180px",
-          background: "#f6f6f6",
-          padding: "10px 12px",
-          fontWeight: 700
-        }}>
-          <div>Ref Code</div>
-          <div>Rows</div>
-          <div>Total USDC</div>
-          <div>Action</div>
+    <Container>
+      <div style={{ display: "grid", gap: 14 }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Admin: Payouts</h1>
+          <div style={{ marginTop: 8, opacity: 0.85 }}>
+            Groups pending affiliate commissions by ref code.
+          </div>
+          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button href="/admin/status" variant="secondary">Status</Button>
+            <Button href="/admin/intents" variant="secondary">Intents</Button>
+            <Button href="/admin/commissions" variant="secondary">Commissions</Button>
+          </div>
         </div>
 
-        {batches.map((b) => (
-          <div
-            key={b.ref}
-            style={{
+        <Card title="Pending batches" subtitle="Mark Paid flips all pending rows for the ref code to paid.">
+          <div style={{ border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{
               display: "grid",
-              gridTemplateColumns: "220px 160px 160px 180px",
+              gridTemplateColumns: "220px 120px 160px 200px",
               padding: "10px 12px",
-              borderTop: "1px solid #eee",
-              alignItems: "center",
-              fontSize: 14,
-            }}
-          >
-            <div style={{ fontFamily: "monospace" }}>{b.ref}</div>
-            <div>{b.count}</div>
-            <div style={{ fontFamily: "monospace" }}>{atomicToUsdc(b.sum)}</div>
-            <div><MarkPaidButton refCode={b.ref} /></div>
+              background: "#f6f6f6",
+              fontWeight: 800,
+              fontSize: 13
+            }}>
+              <div>Ref</div>
+              <div>Rows</div>
+              <div>Total USDC</div>
+              <div>Action</div>
+            </div>
+
+            {batches.map((b) => (
+              <div key={b.ref} style={{
+                display: "grid",
+                gridTemplateColumns: "220px 120px 160px 200px",
+                padding: "10px 12px",
+                borderTop: "1px solid #eee",
+                alignItems: "center",
+                fontSize: 13
+              }}>
+                <div style={{ fontFamily: "monospace" }}>{b.ref}</div>
+                <div>{b.count}</div>
+                <div style={{ fontFamily: "monospace" }}>{atomicToUsdc(b.sum)}</div>
+                <div><MarkPaidButton refCode={b.ref} /></div>
+              </div>
+            ))}
+
+            {batches.length === 0 ? (
+              <div style={{ padding: 12, opacity: 0.75 }}>No pending commissions.</div>
+            ) : null}
           </div>
-        ))}
-
-        {batches.length === 0 ? (
-          <div style={{ padding: 12, opacity: 0.8 }}>No pending commissions.</div>
-        ) : null}
+        </Card>
       </div>
-
-      <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fafafa", border: "1px solid #eee" }}>
-        <b>Next upgrade:</b> replace TEST-PAYOUT with actual tx signature + payout method (USDC/SKOPI), plus export CSV.
-      </div>
-    </main>
+    </Container>
   );
 }
