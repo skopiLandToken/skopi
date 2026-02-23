@@ -12,7 +12,7 @@ function isAdminEmail(email: string | null | undefined) {
 }
 
 export default async function Nav() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   const email = data?.user?.email || null;
 

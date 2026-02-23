@@ -49,7 +49,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
     );
   }
 
-  const ssr = supabaseServer();
+  const ssr = await supabaseServer();
   const { data: userData } = await ssr.auth.getUser();
   const email = userData?.user?.email || null;
   const isAdmin = isAdminEmail(email);

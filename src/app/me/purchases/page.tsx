@@ -12,7 +12,7 @@ function statusPill(status: string) {
 }
 
 export default async function MyPurchasesPage() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   const user = data?.user;
 
