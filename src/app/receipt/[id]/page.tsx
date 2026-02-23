@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import VerifyButton from "../components/verify-button";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +55,9 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       </div>
 
       <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fafafa", border: "1px solid #eee" }}>
-        <b>Payment instructions (real mode):</b>
+        <b>Payment instructions:</b>
         <div style={{ marginTop: 8 }}>
-          Send <b>USDC</b> to the treasury address below and include the <b>reference pubkey</b>.
+          Send <b>USDC</b> to the treasury and include the <b>reference pubkey</b>.
         </div>
 
         <div style={{ marginTop: 10 }}>
@@ -75,19 +76,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <form action={`/api/verify/${intent.id}`} method="POST">
-          <button
-            type="submit"
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid #111",
-              cursor: "pointer",
-            }}
-          >
-            Verify payment (still test mode)
-          </button>
-        </form>
+        <VerifyButton intentId={intent.id} />
       </div>
     </main>
   );
