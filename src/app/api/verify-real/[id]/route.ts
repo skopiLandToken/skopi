@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Connection, PublicKey } from "@solana/web3.js";
 
@@ -19,8 +20,10 @@ function atomicToUi(atomic: bigint) {
   return Number(`${whole}.${frac}`);
 }
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
+
     if (!TREASURY || !USDC_MINT) {
       return NextResponse.json(
         { ok: false, error: "Missing NEXT_PUBLIC_SKOPI_TREASURY_ADDRESS or NEXT_PUBLIC_USDC_MINT" },
@@ -41,7 +44,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const { data: intent, error } = await supabase
       .from("purchase_intents")
       .select("id,status,amount_usdc_atomic,reference_pubkey,created_at,confirmed_at,tx_signature")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (error || !intent) {
