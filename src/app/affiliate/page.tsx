@@ -1,10 +1,7 @@
-import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.skopi.io";
 
 // USDC atomic -> display
@@ -16,20 +13,7 @@ function atomicToUsdc(atomic: bigint) {
 }
 
 export default async function AffiliatePage() {
-  // NOTE: this assumes your auth session cookie is available in some form.
-  // If it isn't yet, we'll switch to "token in header" later.
-  const cookieStore = cookies();
-  const accessToken =
-    cookieStore.get("sb-access-token")?.value ||
-    cookieStore.get("supabase-auth-token")?.value ||
-    "";
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false },
-    global: accessToken
-      ? { headers: { Authorization: `Bearer ${accessToken}` } }
-      : undefined,
-  });
+  const supabase = supabaseServer();
 
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
@@ -55,9 +39,7 @@ export default async function AffiliatePage() {
     return (
       <main style={{ padding: 24, maxWidth: 780, margin: "0 auto" }}>
         <h1 style={{ margin: 0 }}>Affiliate</h1>
-        <p style={{ marginTop: 10 }}>
-          Could not load your affiliate profile.
-        </p>
+        <p style={{ marginTop: 10 }}>Could not load your affiliate profile.</p>
         <pre style={{ whiteSpace: "pre-wrap", background: "#f6f6f6", padding: 12, borderRadius: 12 }}>
           {JSON.stringify(affErr, null, 2)}
         </pre>
@@ -125,7 +107,6 @@ export default async function AffiliatePage() {
           <div style={{
             display: "grid",
             gridTemplateColumns: "150px 90px 140px 1fr 160px",
-            gap: 0,
             padding: "10px 12px",
             background: "#f6f6f6",
             fontWeight: 700,
