@@ -6,13 +6,13 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // USDC is 6 decimals on Solana
-const USDC_DECIMALS = 6n;
+const USDC_DECIMALS = 6;
 
 function toAtomic(usdc: number): bigint {
-  const fixed = usdc.toFixed(Number(USDC_DECIMALS));
+  const fixed = usdc.toFixed(USDC_DECIMALS);
   const [whole, frac = ""] = fixed.split(".");
   const fracPadded = (frac + "0".repeat(Number(USDC_DECIMALS))).slice(0, Number(USDC_DECIMALS));
-  return BigInt(whole) * 10n ** USDC_DECIMALS + BigInt(fracPadded);
+  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(fracPadded);
 }
 
 export async function POST(req: Request) {
