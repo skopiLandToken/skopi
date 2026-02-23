@@ -57,7 +57,7 @@ export function Button({
 }: {
   children: React.ReactNode;
   href?: string;
-  onClick?: () => void;
+  onClick?: (e?: any) => void;
   variant?: "primary" | "secondary" | "ghost";
   disabled?: boolean;
   title?: string;
