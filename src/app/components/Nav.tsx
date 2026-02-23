@@ -47,18 +47,22 @@ export default async function Nav() {
 
         <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a href="/sale" style={linkStyle}>Sale</a>
-          <a href="/affiliate" style={linkStyle}>Affiliate</a>
-
-          {isAdmin ? (
-            <>
-              <a href="/admin/intents" style={linkStyle}>Admin Intents</a>
-              <a href="/admin/commissions" style={linkStyle}>Admin Commissions</a>
-              <a href="/admin/payouts" style={linkStyle}>Admin Payouts</a>
-            </>
-          ) : null}
 
           {email ? (
-            <a href="/logout" style={linkStyle}>Logout</a>
+            <>
+              <a href="/affiliate" style={linkStyle}>Affiliate</a>
+              <a href="/me/purchases" style={linkStyle}>My Purchases</a>
+
+              {isAdmin ? (
+                <>
+                  <a href="/admin/intents" style={linkStyle}>Admin Intents</a>
+                  <a href="/admin/commissions" style={linkStyle}>Admin Commissions</a>
+                  <a href="/admin/payouts" style={linkStyle}>Admin Payouts</a>
+                </>
+              ) : null}
+
+              <a href="/logout" style={linkStyle}>Logout</a>
+            </>
           ) : (
             <a href="/login" style={linkStyle}>Login</a>
           )}
