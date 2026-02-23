@@ -2,22 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type Props = {
+  initialAmount?: number;
+  initialRefCode?: string;
+  nextPath?: string;
+};
+
 function getParam(name: string) {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get(name) || "";
 }
 
-export default function BuyClient() {
+export default function BuyClient(props: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const amount = useMemo(() => {
+    if (typeof props.initialAmount === "number" && props.initialAmount > 0) return props.initialAmount;
     const raw = getParam("amount");
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : 10;
-  }, []);
+  }, [props.initialAmount]);
 
-  const ref = useMemo(() => getParam("ref").trim(), []);
+  const ref = useMemo(() => {
+    if (typeof props.initialRefCode === "string") return props.initialRefCode.trim();
+    return getParam("ref").trim();
+  }, [props.initialRefCode]);
 
   async function createIntent() {
     setLoading(true);
@@ -35,7 +45,8 @@ export default function BuyClient() {
       if (res.status === 401) {
         setErr("You need to log in before buying. Redirecting to /login…");
         setTimeout(() => {
-          window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+          const next = props.nextPath || (window.location.pathname + window.location.search);
+          window.location.href = `/login?next=${encodeURIComponent(next)}`;
         }, 900);
         setLoading(false);
         return;
