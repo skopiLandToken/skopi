@@ -1,4 +1,4 @@
-import { supabaseServer } from "@/lib/supabase-server";
+import { supabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function AffiliatePage() {
       <main style={{ padding: 24, maxWidth: 780, margin: "0 auto" }}>
         <h1 style={{ margin: 0 }}>Affiliate</h1>
         <p style={{ marginTop: 10 }}>
-          You must be logged in to see your affiliate earnings.
+          You must be logged in. Go to <a href="/login">/login</a>.
         </p>
       </main>
     );
@@ -65,10 +65,17 @@ export default async function AffiliatePage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <h1 style={{ margin: 0 }}>Affiliate Dashboard</h1>
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Share your link. Earnings update when purchases confirm.
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Affiliate Dashboard</h1>
+          <p style={{ marginTop: 8, opacity: 0.85 }}>
+            Share your link. Earnings update when purchases confirm.
+          </p>
+        </div>
+        <div style={{ fontSize: 14 }}>
+          <a href="/logout" style={{ textDecoration: "none" }}>Logout</a>
+        </div>
+      </div>
 
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
         <div style={card}>
