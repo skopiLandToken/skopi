@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import VerifyButton from "../components/verify-button";
 import VerifyRealButton from "../components/verify-real-button";
+import PayPhantomButton from "../components/pay-phantom-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 860 }}>
+    <main style={{ padding: 24, maxWidth: 920 }}>
       <h1 style={{ marginBottom: 8 }}>Receipt</h1>
 
       <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
@@ -76,9 +77,20 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         </div>
       </div>
 
-      <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <VerifyButton intentId={intent.id} />
-        <VerifyRealButton intentId={intent.id} />
+      <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+        <div style={{ padding: 14, borderRadius: 12, border: "1px solid #ddd" }}>
+          <div style={{ fontWeight: 700, marginBottom: 10 }}>Pay with wallet</div>
+          <PayPhantomButton
+            intentId={intent.id}
+            amountUsdcAtomic={String(intent.amount_usdc_atomic)}
+            referencePubkey={String(intent.reference_pubkey)}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <VerifyButton intentId={intent.id} />
+          <VerifyRealButton intentId={intent.id} />
+        </div>
       </div>
     </main>
   );
