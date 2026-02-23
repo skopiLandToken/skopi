@@ -12,7 +12,7 @@ function toAtomic(usdc: number): bigint {
   const fixed = usdc.toFixed(USDC_DECIMALS);
   const [whole, frac = ""] = fixed.split(".");
   const fracPadded = (frac + "0".repeat(Number(USDC_DECIMALS))).slice(0, Number(USDC_DECIMALS));
-  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(fracPadded);
+  return BigInt(whole) * BigInt(10) ** BigInt(USDC_DECIMALS) + BigInt(fracPadded);
 }
 
 export async function POST(req: Request) {
