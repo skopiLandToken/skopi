@@ -1,4 +1,23 @@
-export default function Nav() {
+import { supabaseServer } from "@/lib/supabase";
+
+function isAdminEmail(email: string | null | undefined) {
+  const allow = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!email) return false;
+  if (allow.length === 0) return false; // fail-closed
+  return allow.includes(email.toLowerCase());
+}
+
+export default async function Nav() {
+  const supabase = supabaseServer();
+  const { data } = await supabase.auth.getUser();
+  const email = data?.user?.email || null;
+
+  const isAdmin = isAdminEmail(email);
+
   const linkStyle: React.CSSProperties = {
     textDecoration: "none",
     padding: "8px 10px",
@@ -29,11 +48,20 @@ export default function Nav() {
         <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a href="/sale" style={linkStyle}>Sale</a>
           <a href="/affiliate" style={linkStyle}>Affiliate</a>
-          <a href="/admin/intents" style={linkStyle}>Admin Intents</a>
-          <a href="/admin/commissions" style={linkStyle}>Admin Commissions</a>
-          <a href="/admin/payouts" style={linkStyle}>Admin Payouts</a>
-          <a href="/login" style={linkStyle}>Login</a>
-          <a href="/logout" style={linkStyle}>Logout</a>
+
+          {isAdmin ? (
+            <>
+              <a href="/admin/intents" style={linkStyle}>Admin Intents</a>
+              <a href="/admin/commissions" style={linkStyle}>Admin Commissions</a>
+              <a href="/admin/payouts" style={linkStyle}>Admin Payouts</a>
+            </>
+          ) : null}
+
+          {email ? (
+            <a href="/logout" style={linkStyle}>Logout</a>
+          ) : (
+            <a href="/login" style={linkStyle}>Login</a>
+          )}
         </nav>
       </div>
     </header>
