@@ -101,7 +101,7 @@ export default async function MyPurchasesPage() {
       </div>
 
       <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fafafa", border: "1px solid #eee" }}>
-        <b>Next:</b> add “Resend payment” (reopen receipt) + email notifications on confirm.
+        <b>Next:</b> email notifications on confirm + better export.
       </div>
     </main>
   );
