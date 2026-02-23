@@ -12,7 +12,6 @@ export async function POST(
   try {
     const adminToken = req.headers.get("x-admin-token") || "";
 
-    // Test-mode safety: require admin token to "confirm" without real on-chain verification.
     if (!ADMIN_FORCE_CONFIRM_TOKEN || adminToken !== ADMIN_FORCE_CONFIRM_TOKEN) {
       return NextResponse.json(
         { ok: false, error: "Missing or invalid x-admin-token." },
@@ -26,7 +25,25 @@ export async function POST(
 
     const intentId = params.id;
 
-    // 1) Mark intent as confirmed in DB (test mode)
+    // Load current status
+    const { data: cur, error: curErr } = await supabase
+      .from("purchase_intents")
+      .select("id,status")
+      .eq("id", intentId)
+      .single();
+
+    if (curErr || !cur) {
+      return NextResponse.json({ ok: false, error: "Intent not found" }, { status: 404 });
+    }
+
+    if (cur.status !== "awaiting_payment" && cur.status !== "created") {
+      return NextResponse.json(
+        { ok: false, error: `Cannot confirm from status=${cur.status}` },
+        { status: 400 }
+      );
+    }
+
+    // Confirm (test mode)
     const { data: updatedIntent, error: updErr } = await supabase
       .from("purchase_intents")
       .update({
@@ -47,15 +64,13 @@ export async function POST(
       );
     }
 
-    // 2) Commit affiliate commissions (creates rows in affiliate_commissions)
-    // This function enforces "confirmed" + confirmed_at, so must happen AFTER update.
+    // Commit commissions
     const { data: commissions, error: comErr } = await supabase.rpc(
       "commit_affiliate_commissions",
       { p_intent_id: intentId }
     );
 
     if (comErr) {
-      // Don't fail the whole verify if commissions fail; return both so we can debug safely.
       return NextResponse.json(
         {
           ok: true,

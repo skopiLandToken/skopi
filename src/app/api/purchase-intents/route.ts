@@ -9,14 +9,9 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const USDC_DECIMALS = 6n;
 
 function toAtomic(usdc: number): bigint {
-  // Convert like 10.25 -> 10250000 (atomic)
-  // Avoid float weirdness by rounding to 6 decimals first.
   const fixed = usdc.toFixed(Number(USDC_DECIMALS));
   const [whole, frac = ""] = fixed.split(".");
-  const fracPadded = (frac + "0".repeat(Number(USDC_DECIMALS))).slice(
-    0,
-    Number(USDC_DECIMALS)
-  );
+  const fracPadded = (frac + "0".repeat(Number(USDC_DECIMALS))).slice(0, Number(USDC_DECIMALS));
   return BigInt(whole) * 10n ** USDC_DECIMALS + BigInt(fracPadded);
 }
 
@@ -24,11 +19,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // ✅ Accept new “human” payload
     const amountUsdc = typeof body.amountUsdc === "number" ? body.amountUsdc : null;
     const refCode = typeof body.refCode === "string" ? body.refCode : null;
 
-    // ✅ Backward compat (older payloads)
     const amount_usdc_atomic =
       typeof body.amount_usdc_atomic === "string" || typeof body.amount_usdc_atomic === "number"
         ? BigInt(body.amount_usdc_atomic)
@@ -37,7 +30,6 @@ export async function POST(req: Request) {
     const reference_pubkey =
       typeof body.reference_pubkey === "string" ? body.reference_pubkey : null;
 
-    // --- Validate amount ---
     const atomic = amountUsdc !== null ? toAtomic(amountUsdc) : amount_usdc_atomic;
 
     if (atomic === null || atomic <= 0n) {
@@ -47,7 +39,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- Require user via Bearer token ---
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.startsWith("Bearer ")
       ? authHeader.slice("Bearer ".length)
@@ -66,23 +57,18 @@ export async function POST(req: Request) {
 
     const { data: userData, error: userErr } = await supabase.auth.getUser(token);
     if (userErr || !userData?.user?.id) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid auth token." },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "Invalid auth token." }, { status: 401 });
     }
 
     const userId = userData.user.id;
-
-    // --- Generate reference pubkey if missing ---
     const refPubkey = reference_pubkey ?? Keypair.generate().publicKey.toBase58();
 
-    // --- Create intent (server chooses tranche) ---
+    // Create intent via RPC
     const { data, error } = await supabase.rpc("create_purchase_intent_with_tranche", {
       p_user_id: userId,
       p_amount_usdc_atomic: atomic.toString(),
       p_reference_pubkey: refPubkey,
-      p_ft_ref_code: refCode, // ok if null
+      p_ft_ref_code: refCode,
     });
 
     if (error) {
@@ -92,11 +78,18 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, intent: data });
+    // Move to awaiting_payment immediately (more “real” flow)
+    const intentId = data?.id;
+    if (intentId) {
+      await supabase
+        .from("purchase_intents")
+        .update({ status: "awaiting_payment", updated_at: new Date().toISOString() })
+        .eq("id", intentId);
+    }
+
+    // Return intent with reference_pubkey for UI
+    return NextResponse.json({ ok: true, intent: data, reference_pubkey: refPubkey });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
