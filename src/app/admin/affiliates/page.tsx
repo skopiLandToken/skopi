@@ -15,7 +15,7 @@ function fmt(n: number) {
 }
 
 export default async function AdminAffiliatesPage() {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const supabase: any = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
@@ -37,7 +37,7 @@ export default async function AdminAffiliatesPage() {
   const rows = await Promise.all(
     (affiliates ?? []).map(async (a) => {
       // Count referred intents
-      const { count: intentCount } = await supabase
+      const { count: intentCount } = await (supabase as any)
         .from("purchase_intents")
         .select("id", { count: "exact", head: true })
         .eq(REF_FIELD as any, a.ref_code);
