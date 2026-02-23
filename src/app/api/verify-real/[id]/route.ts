@@ -48,6 +48,16 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ ok: false, error: "Intent not found" }, { status: 404 });
     }
 
+    if (intent.status === "confirmed") {
+      return NextResponse.json({
+        ok: true,
+        implemented: true,
+        found: true,
+        message: "Intent already confirmed.",
+        signature: intent.tx_signature || null,
+      });
+    }
+
     const amountAtomic = BigInt(intent.amount_usdc_atomic ?? 0);
     const amountUi = atomicToUi(amountAtomic);
     const reference = String(intent.reference_pubkey || "").trim();
