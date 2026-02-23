@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAccount, getMint } from "@solana/spl-token";
+import { getAccount} from "@solana/spl-token";
 
 function mustEnv(name: string): string {
   const v = process.env[name];
