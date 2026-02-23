@@ -35,7 +35,7 @@ export default async function AdminAffiliatesPage() {
   }
 
   const rows = await Promise.all(
-    (affiliates ?? []).map(async (a) => {
+    (affiliates ?? []).map(async (a: any) => {
       // Count referred intents
       const { count: intentCount } = await (supabase as any)
         .from("purchase_intents")
