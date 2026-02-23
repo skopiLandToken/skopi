@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+function isAdminEmail(email: string | null | undefined) {
+  const allow = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!email) return false;
+  if (allow.length === 0) return false; // fail-closed
+  return allow.includes(email.toLowerCase());
+}
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
@@ -20,8 +31,19 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // Refresh session if needed
-  await supabase.auth.getUser();
+  // Refresh / read user (also keeps cookies fresh)
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+
+  // Guard admin routes
+  if (req.nextUrl.pathname.startsWith("/admin")) {
+    if (!user?.email || !isAdminEmail(user.email)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", req.nextUrl.pathname);
+      return NextResponse.redirect(url);
+    }
+  }
 
   return res;
 }
