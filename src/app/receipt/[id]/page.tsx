@@ -1,142 +1,65 @@
-"use client";
+import { createClient } from "@supabase/supabase-js";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+export const dynamic = "force-dynamic";
 
-type Intent = {
-  id: string;
-  status: string;
-  amount_usdc_atomic: number;
-  treasury_address: string;
-  usdc_mint: string;
-  reference_pubkey: string;
-  tx_signature?: string | null;
-  created_at: string;
-  updated_at?: string;
-};
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function humanUsdc(amountAtomic: number) {
-  return (amountAtomic / 1_000_000).toFixed(6).replace(/\.?0+$/, "");
-}
+export default async function ReceiptPage({ params }: { params: { id: string } }) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
 
-function StatusBadge({ status }: { status: string }) {
-  const s = status.toLowerCase();
-  const style: React.CSSProperties = {
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  };
+  const { data: intent, error } = await supabase
+    .from("purchase_intents")
+    .select(
+      "id,status,tranche_id,price_usdc_used,tokens_skopi,reference_pubkey,created_at,confirmed_at,tx_signature,failure_reason,updated_at"
+    )
+    .eq("id", params.id)
+    .single();
 
-  if (s === "confirmed") {
-    return <span style={{ ...style, background: "#d8f8df", color: "#0f6b2a" }}>{status}</span>;
+  if (error || !intent) {
+    return (
+      <main style={{ padding: 24, maxWidth: 760 }}>
+        <h1 style={{ marginBottom: 8 }}>Receipt</h1>
+        <p>Could not load this purchase intent.</p>
+        <pre style={{ whiteSpace: "pre-wrap", background: "#f6f6f6", padding: 12, borderRadius: 8 }}>
+          {JSON.stringify(error, null, 2)}
+        </pre>
+      </main>
+    );
   }
-  if (s === "failed" || s === "expired") {
-    return <span style={{ ...style, background: "#ffe1e1", color: "#8d1d1d" }}>{status}</span>;
-  }
-  return <span style={{ ...style, background: "#fff1d6", color: "#8a5a00" }}>{status}</span>;
-}
-
-export default function ReceiptPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [intent, setIntent] = useState<Intent | null>(null);
-
-  async function load() {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/purchase-intents/${id}/status`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to load receipt");
-      }
-      setIntent(data.intent);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load receipt");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  async function copyText(text: string, label: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert(`${label} copied`);
-    } catch {
-      alert(`Could not copy ${label}`);
-    }
-  }
-
-  const txUrl = intent?.tx_signature ? `https://solscan.io/tx/${intent.tx_signature}` : null;
 
   return (
-    <main style={{ maxWidth: 780, margin: "40px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 34, marginBottom: 8 }}>SKOpi Receipt</h1>
-      <p style={{ opacity: 0.8, marginBottom: 20 }}>
-        Receipt reference: <code>{id}</code>
-      </p>
+    <main style={{ padding: 24, maxWidth: 760 }}>
+      <h1 style={{ marginBottom: 8 }}>Receipt</h1>
 
-      {loading && <p>Loading receipt...</p>}
-
-      {error && (
-        <div style={{ border: "1px solid #f5b5b5", background: "#fff5f5", color: "#8a1c1c", borderRadius: 12, padding: 12 }}>
-          {error}
+      <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
+        <div><b>Intent ID:</b> {intent.id}</div>
+        <div><b>Status:</b> {intent.status}</div>
+        <div><b>Tranche:</b> {intent.tranche_id}</div>
+        <div><b>Price used:</b> {intent.price_usdc_used} USDC</div>
+        <div><b>Tokens:</b> {intent.tokens_skopi} SKOPI</div>
+        <div style={{ marginTop: 10 }}><b>Reference pubkey:</b></div>
+        <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 8 }}>
+          {intent.reference_pubkey}
         </div>
-      )}
 
-      {intent && (
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, background: "#fafafa" }}>
-          <p style={{ marginBottom: 10 }}>
-            <strong>Status:</strong> <StatusBadge status={intent.status} />
-          </p>
-          <p><strong>Intent ID:</strong> {intent.id}</p>
-          <p><strong>Amount:</strong> {humanUsdc(intent.amount_usdc_atomic)} USDC</p>
-          <p><strong>Treasury:</strong> {intent.treasury_address}</p>
-          <p><strong>Reference:</strong> {intent.reference_pubkey}</p>
-          <p>
-            <strong>Tx Signature:</strong>{" "}
-            {intent.tx_signature ? (
-              <>
-                <code>{intent.tx_signature}</code>{" "}
-                <a href={txUrl!} target="_blank" rel="noreferrer">
-                  View on Solscan
-                </a>
-              </>
-            ) : (
-              "Not confirmed yet"
-            )}
-          </p>
-          <p><strong>Created:</strong> {new Date(intent.created_at).toLocaleString()}</p>
-          {intent.updated_at && <p><strong>Updated:</strong> {new Date(intent.updated_at).toLocaleString()}</p>}
-
-          <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={load} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #222", cursor: "pointer" }}>
-              Refresh Status
-            </button>
-            <button onClick={() => copyText(intent.id, "Intent ID")}>
-              Copy Intent ID
-            </button>
-            <button onClick={() => copyText(intent.reference_pubkey, "Reference")}>Copy Reference</button>
-            {intent.tx_signature && (
-              <button onClick={() => copyText(intent.tx_signature!, "Tx Signature")}>Copy Tx Signature</button>
-            )}
-          </div>
+        <div style={{ marginTop: 10, fontSize: 14, opacity: 0.9 }}>
+          <div><b>Created:</b> {intent.created_at}</div>
+          {intent.updated_at ? <div><b>Updated:</b> {intent.updated_at}</div> : null}
+          {intent.confirmed_at ? <div><b>Confirmed:</b> {intent.confirmed_at}</div> : null}
+          {intent.tx_signature ? <div><b>Tx signature:</b> {intent.tx_signature}</div> : null}
+          {intent.failure_reason ? <div><b>Failure reason:</b> {intent.failure_reason}</div> : null}
         </div>
-      )}
+      </div>
+
+      <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fafafa", border: "1px solid #eee" }}>
+        <b>Next step:</b> Send the USDC payment using the <b>reference pubkey</b> above.
+        <div style={{ marginTop: 8 }}>
+          Then refresh this page after payment, or use your existing verify/confirm flow.
+        </div>
+      </div>
     </main>
   );
 }
