@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ADMIN_FORCE_CONFIRM_TOKEN = process.env.ADMIN_FORCE_CONFIRM_TOKEN || "";
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
+
     const adminToken = req.headers.get("x-admin-token") || "";
 
     if (!ADMIN_FORCE_CONFIRM_TOKEN || adminToken !== ADMIN_FORCE_CONFIRM_TOKEN) {
@@ -23,7 +23,7 @@ export async function POST(
       auth: { persistSession: false },
     });
 
-    const intentId = params.id;
+    const intentId = id;
 
     // Load current status
     const { data: cur, error: curErr } = await supabase
