@@ -61,8 +61,8 @@ export default async function AffiliatePage() {
   const pending = (rows ?? []).filter((r: any) => r.status === "pending");
   const paid = (rows ?? []).filter((r: any) => r.status === "paid");
 
-  const pendingSum = pending.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), 0n);
-  const paidSum = paid.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), 0n);
+  const pendingSum = pending.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), BigInt(0));
+  const paidSum = paid.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), BigInt(0));
 
   return (
     <Container>
