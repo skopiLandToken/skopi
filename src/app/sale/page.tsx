@@ -9,7 +9,13 @@ function fmt(n: number) {
   return new Intl.NumberFormat("en-US").format(n);
 }
 
-export default async function SalePage() {
+export default async function SalePage({
+  searchParams,
+}: {
+  searchParams?: { ref?: string };
+}) {
+  const ref = (searchParams?.ref || "").trim();
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false },
   });
@@ -20,12 +26,21 @@ export default async function SalePage() {
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
+  const qp = ref ? `&ref=${encodeURIComponent(ref)}` : "";
+
   return (
     <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
       <h1 style={{ margin: 0 }}>SKOpi Sale</h1>
       <p style={{ marginTop: 8, opacity: 0.85 }}>
         Pick a tranche, then choose an amount. You&apos;ll be redirected to a receipt after the intent is created.
       </p>
+
+      <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
+        <b>Referral:</b> {ref ? <span style={{ fontFamily: "monospace" }}>{ref}</span> : <span style={{ opacity: 0.7 }}>none</span>}
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8 }}>
+          Share link: <span style={{ fontFamily: "monospace" }}>https://app.skopi.io/sale?ref={ref || "YOURCODE"}</span>
+        </div>
+      </div>
 
       {error ? (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #f00", borderRadius: 12 }}>
@@ -48,13 +63,13 @@ export default async function SalePage() {
               <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8 }}><b>Sold:</b> {fmt(sold)}</div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <a href={`/buy?amount=10`} style={btnStyle}>Buy $10</a>
-                <a href={`/buy?amount=25`} style={btnStyle}>Buy $25</a>
-                <a href={`/buy?amount=100`} style={btnStyle}>Buy $100</a>
+                <a href={`/buy?amount=10${qp}`} style={btnStyle}>Buy $10</a>
+                <a href={`/buy?amount=25${qp}`} style={btnStyle}>Buy $25</a>
+                <a href={`/buy?amount=100${qp}`} style={btnStyle}>Buy $100</a>
               </div>
 
               <div style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>
-                Tip: add <code>&ref=YOURCODE</code> to the URL for affiliate tracking.
+                Ref automatically carried into checkout.
               </div>
             </div>
           );
