@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import { Container, Card, Button, Pill } from "../components/ui";
 
 function getNextParam() {
