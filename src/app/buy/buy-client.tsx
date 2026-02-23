@@ -17,9 +17,7 @@ export default function BuyClient() {
     return Number.isFinite(n) && n > 0 ? n : 10;
   }, []);
 
-  const ref = useMemo(() => {
-    return getParam("ref").trim();
-  }, []);
+  const ref = useMemo(() => getParam("ref").trim(), []);
 
   async function createIntent() {
     setLoading(true);
@@ -29,52 +27,71 @@ export default function BuyClient() {
       const res = await fetch("/api/purchase-intents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          amountUsdc: amount,
-          refCode: ref || null,
-        }),
+        body: JSON.stringify({ amountUsdc: amount, refCode: ref || null }),
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+
+      if (res.status === 401) {
+        setErr("You need to log in before buying. Redirecting to /login…");
+        setTimeout(() => {
+          window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        }, 900);
+        setLoading(false);
+        return;
+      }
+
+      if (res.status === 429) {
+        setErr("Too many attempts too fast. Take a minute, then refresh and try again.");
+        setLoading(false);
+        return;
+      }
+
       if (!res.ok || !json?.ok || !json?.intent?.id) {
         setErr(json?.error || "Failed to create intent");
         setLoading(false);
         return;
       }
 
-      // Redirect to receipt
       window.location.href = `/receipt/${json.intent.id}`;
     } catch (e: any) {
       setErr(e?.message || "Error");
-    } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    // Auto-create on page load for frictionless flow
     createIntent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <main style={{ padding: 24, maxWidth: 760 }}>
+    <main style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
       <h1 style={{ margin: 0 }}>Creating your purchase…</h1>
       <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Amount: <b>${amount}</b> {ref ? <>• Ref: <b style={{ fontFamily: "monospace" }}>{ref}</b></> : null}
+        Amount: <b>${amount}</b>
+        {ref ? (
+          <>
+            {" "}
+            • Ref: <b style={{ fontFamily: "monospace" }}>{ref}</b>
+          </>
+        ) : null}
       </p>
 
-      {loading ? (
-        <p style={{ marginTop: 16 }}>Working…</p>
-      ) : null}
+      {loading ? <p style={{ marginTop: 16 }}>Working…</p> : null}
 
       {err ? (
         <div style={{ marginTop: 16, padding: 12, borderRadius: 12, border: "1px solid #f00" }}>
-          <b>Error:</b> {err}
+          <b>Notice:</b> {err}
           <div style={{ marginTop: 10 }}>
             <button
               onClick={createIntent}
-              style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #111", cursor: "pointer" }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid #111",
+                cursor: "pointer",
+              }}
             >
               Try again
             </button>
