@@ -43,8 +43,8 @@ export async function GET() {
       ok: true,
       rpcUrl,
       mint: mint.toBase58(),
-      mintAuthority: mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : null,
-      freezeAuthority: mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : null,
+      mintAuthority: mintParsed?.mintAuthority || null,
+      freezeAuthority: mintParsed?.freezeAuthority || null,
       decimals: supplyResp.value.decimals,
       supplyUi: supplyResp.value.uiAmountString,
       accounts: {
