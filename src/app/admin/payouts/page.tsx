@@ -40,7 +40,7 @@ export default async function AdminPayoutsPage() {
   for (const r of rows ?? []) {
     const ref = r.ref_code as string;
     const usdc = BigInt(r.usdc_atomic as any);
-    const cur = map.get(ref) || { ref, count: 0, sum: 0n };
+    const cur = map.get(ref) || { ref, count: 0, sum: BigInt(0) };
     cur.count += 1;
     cur.sum += usdc;
     map.set(ref, cur);
