@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase-server";
+import { Button } from "./ui";
 
 function isAdminEmail(email: string | null | undefined) {
   const allow = (process.env.ADMIN_EMAILS || "")
@@ -15,25 +16,15 @@ export default async function Nav() {
   const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   const email = data?.user?.email || null;
-
   const isAdmin = isAdminEmail(email);
 
-  const linkStyle: React.CSSProperties = {
-    textDecoration: "none",
-    padding: "8px 10px",
-    borderRadius: 10,
-    border: "1px solid #ddd",
-    fontSize: 14,
-    color: "#111",
-  };
-
   return (
-    <header style={{ borderBottom: "1px solid #eee", background: "#fff" }}>
+    <header>
       <div
+        className="container"
         style={{
-          maxWidth: 1100,
-          margin: "0 auto",
-          padding: "14px 16px",
+          paddingTop: 14,
+          paddingBottom: 14,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -41,30 +32,31 @@ export default async function Nav() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontWeight: 800, letterSpacing: 0.3 }}>
-          <a href="/" style={{ textDecoration: "none", color: "#111" }}>SKOpi</a>
+        <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>
+          <a href="/" style={{ textDecoration: "none" }}>SKOpi</a>
         </div>
 
-        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <a href="/sale" style={linkStyle}>Sale</a>
+        <nav style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <Button href="/sale" variant="secondary">Sale</Button>
 
           {email ? (
             <>
-              <a href="/affiliate" style={linkStyle}>Affiliate</a>
-              <a href="/me/purchases" style={linkStyle}>My Purchases</a>
+              <Button href="/affiliate" variant="secondary">Affiliate</Button>
+              <Button href="/me/purchases" variant="secondary">My Purchases</Button>
 
               {isAdmin ? (
                 <>
-                  <a href="/admin/intents" style={linkStyle}>Admin Intents</a>
-                  <a href="/admin/commissions" style={linkStyle}>Admin Commissions</a>
-                  <a href="/admin/payouts" style={linkStyle}>Admin Payouts</a>
+                  <Button href="/admin/status" variant="ghost">Admin</Button>
+                  <Button href="/admin/intents" variant="ghost">Intents</Button>
+                  <Button href="/admin/commissions" variant="ghost">Commissions</Button>
+                  <Button href="/admin/payouts" variant="ghost">Payouts</Button>
                 </>
               ) : null}
 
-              <a href="/logout" style={linkStyle}>Logout</a>
+              <Button href="/logout" variant="primary">Logout</Button>
             </>
           ) : (
-            <a href="/login" style={linkStyle}>Login</a>
+            <Button href="/login" variant="primary">Login</Button>
           )}
         </nav>
       </div>
