@@ -1,12 +1,7 @@
-
 import React from "react";
 
 export function Container({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
-      {children}
-    </div>
-  );
+  return <div className="container">{children}</div>;
 }
 
 export function Card({
@@ -14,26 +9,21 @@ export function Card({
   title,
   subtitle,
   right,
+  elevated = false,
 }: {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
   right?: React.ReactNode;
+  elevated?: boolean;
 }) {
   return (
-    <section
-      style={{
-        border: "1px solid #e6e6e6",
-        borderRadius: 16,
-        background: "#fff",
-        padding: 16,
-      }}
-    >
+    <section className={`card ${elevated ? "card--elevated" : ""}`}>
       {(title || subtitle || right) ? (
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
           <div>
-            {title ? <div style={{ fontWeight: 800, fontSize: 16 }}>{title}</div> : null}
-            {subtitle ? <div style={{ marginTop: 4, opacity: 0.8, fontSize: 13 }}>{subtitle}</div> : null}
+            {title ? <div className="card-title">{title}</div> : null}
+            {subtitle ? <div className="card-subtitle">{subtitle}</div> : null}
           </div>
           {right ? <div>{right}</div> : null}
         </div>
@@ -63,55 +53,37 @@ export function Button({
   title?: string;
   type?: "button" | "submit";
 }) {
-  const base: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: "10px 12px",
-    borderRadius: 12,
-    textDecoration: "none",
-    fontSize: 14,
-    cursor: disabled ? "not-allowed" : "pointer",
-    userSelect: "none",
-    border: "1px solid #111",
-    opacity: disabled ? 0.6 : 1,
-  };
-
-  const styles: Record<string, React.CSSProperties> = {
-    primary: { ...base, background: "#111", color: "#fff" },
-    secondary: { ...base, background: "#fff", color: "#111", border: "1px solid #ddd" },
-    ghost: { ...base, background: "transparent", color: "#111", border: "1px solid transparent" },
-  };
+  const cls = `btn btn-${variant}`;
 
   if (href) {
     return (
-      <a href={href} style={styles[variant]} aria-disabled={disabled ? "true" : "false"} title={title}>
+      <a
+        href={href}
+        className={cls}
+        aria-disabled={disabled ? "true" : "false"}
+        title={title}
+        onClick={(e) => {
+          if (disabled) e.preventDefault();
+        }}
+      >
         {children}
       </a>
     );
   }
 
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={styles[variant]} title={title}>
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cls}
+      title={title}
+    >
       {children}
     </button>
   );
 }
 
 export function Pill({ text }: { text: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "4px 8px",
-        borderRadius: 999,
-        border: "1px solid #e6e6e6",
-        fontSize: 12,
-        opacity: 0.85,
-      }}
-    >
-      {text}
-    </span>
-  );
+  return <span className="pill">{text}</span>;
 }

@@ -1,21 +1,21 @@
-import type { Metadata } from "next";
+import "./globals.css";
 import Nav from "./components/Nav";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "SKOpi Portal",
-  description: "SKOpi portal for sale, receipts, affiliates, and admin operations.",
+  description: "Buy SKOpi, track purchases, and manage affiliate earnings.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" }}>
-        <Nav />
-        {children}
+      <body>
+        <div className="app-shell">
+          <Nav />
+          <main className="main">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
