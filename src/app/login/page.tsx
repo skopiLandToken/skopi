@@ -24,13 +24,23 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
 
+    try {
+e.preventDefault();
+    setLoading(true);
+    setMsg(null);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setMsg(error.message);
+      setMsg(error?.message || String(error));
       setLoading(false);
       return;
     }
     window.location.href = nextUrl;
+    } catch (err: any) {
+      setMsg(err?.message || String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signUp(e: React.FormEvent) {
@@ -38,18 +48,33 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
 
+    try {
+e.preventDefault();
+    setLoading(true);
+    setMsg(null);
+
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
-      setMsg(error.message);
+      setMsg(error?.message || String(error));
       setLoading(false);
       return;
     }
     setMsg("Signup success. Now sign in, or use Magic Link.");
     setLoading(false);
+    } catch (err: any) {
+      setMsg(err?.message || String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function magicLink(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
+    setMsg(null);
+
+    try {
+e.preventDefault();
     setLoading(true);
     setMsg(null);
 
@@ -61,13 +86,18 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setMsg(error.message);
+      setMsg(error?.message || String(error));
       setLoading(false);
       return;
     }
 
     setMsg("Magic link sent. Check your email.");
     setLoading(false);
+    } catch (err: any) {
+      setMsg(err?.message || String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
