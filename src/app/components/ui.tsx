@@ -56,15 +56,17 @@ export function Button({
   const cls = `btn btn-${variant}`;
 
   if (href) {
+    const style: React.CSSProperties | undefined = disabled
+      ? { pointerEvents: "none", opacity: 0.55 }
+      : undefined;
+
     return (
       <a
         href={href}
         className={cls}
         aria-disabled={disabled ? "true" : "false"}
         title={title}
-        onClick={(e) => {
-          if (disabled) e.preventDefault();
-        }}
+        style={style}
       >
         {children}
       </a>
