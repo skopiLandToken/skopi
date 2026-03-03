@@ -1,189 +1,138 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
-import { Container, Card, Button, Pill } from "../components/ui";
-
-function getNextParam() {
-  if (typeof window === "undefined") return "/me/purchases";
-  const u = new URL(window.location.href);
-  return u.searchParams.get("next") || "/me/purchases";
-}
+import { useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
-  const supabase = supabaseBrowser();
-  const nextUrl = useMemo(() => getNextParam(), []);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const supabase = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    return createClient(url, anon);
+  }, []);
+
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  async function signInPassword(e: React.FormEvent) {
+  const nextUrl = searchParams.get('next') || '/';
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
+    setMessage(null);
     setLoading(true);
-    setMsg(null);
+
+    const emailTrimmed = email.trim();
 
     try {
-e.preventDefault();
-    setLoading(true);
-    setMsg(null);
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email: emailTrimmed,
+          password,
+          options: {
+            // If you don't have /auth/callback yet, change to `${process.env.NEXT_PUBLIC_APP_URL}`
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+          },
+        });
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setMsg(error?.message || String(error));
-      setLoading(false);
-      return;
-    }
-    window.location.href = nextUrl;
+        if (error) throw error;
+
+        setMessage('Account created. Check your email to confirm, then sign in.');
+        setMode('signin');
+        setPassword('');
+        return;
+      }
+
+      // signin
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailTrimmed,
+        password,
+      });
+
+      if (error) throw error;
+
+      router.push(nextUrl);
+      router.refresh();
     } catch (err: any) {
-      setMsg(err?.message || String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function signUp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setMsg(null);
-
-    try {
-e.preventDefault();
-    setLoading(true);
-    setMsg(null);
-
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setMsg(error?.message || String(error));
-      setLoading(false);
-      return;
-    }
-    setMsg("Signup success. Now sign in, or use Magic Link.");
-    setLoading(false);
-    } catch (err: any) {
-      setMsg(err?.message || String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function magicLink(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setMsg(null);
-
-    try {
-e.preventDefault();
-    setLoading(true);
-    setMsg(null);
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}${nextUrl}`,
-      },
-    });
-
-    if (error) {
-      setMsg(error?.message || String(error));
-      setLoading(false);
-      return;
-    }
-
-    setMsg("Magic link sent. Check your email.");
-    setLoading(false);
-    } catch (err: any) {
-      setMsg(err?.message || String(err));
+      setError(err?.message || 'Something went wrong.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Container>
-      <div style={{ display: "grid", gap: 14, maxWidth: 560 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Login</h1>
-          <div style={{ marginTop: 8, opacity: 0.85 }}>
-            Sign in to access your purchases and affiliate dashboard.
-          </div>
-          <div style={{ marginTop: 10, opacity: 0.75, fontSize: 13 }}>
-            After login you’ll return to: <span style={{ fontFamily: "monospace" }}>{nextUrl}</span>
-          </div>
-        </div>
+    <main style={{ maxWidth: 420, margin: '48px auto', padding: 16 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16 }}>
+        {mode === 'signup' ? 'Create account' : 'Sign in'}
+      </h1>
 
-        <Card title="Magic Link" subtitle="Fastest option (no password needed)">
-          <form onSubmit={magicLink} style={{ display: "grid", gap: 10 }}>
-            <label style={{ display: "grid", gap: 6, fontSize: 13, opacity: 0.9 }}>
-              Email
-              <input
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ padding: 12, borderRadius: 12, border: "1px solid #ccc" }}
-                autoComplete="email"
-              />
-            </label>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-              <Button type="submit" disabled={loading || !email}>
-                {loading ? "…" : "Send Magic Link"}
-              </Button>
-              <Button href="/sale" variant="secondary">Back to Sale</Button>
-            </div>
-          </form>
-        </Card>
-
-        <Card title="Password Login" subtitle="Works too (email + password)">
-          <form onSubmit={signInPassword} style={{ display: "grid", gap: 10 }}>
-            <label style={{ display: "grid", gap: 6, fontSize: 13, opacity: 0.9 }}>
-              Email
-              <input
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ padding: 12, borderRadius: 12, border: "1px solid #ccc" }}
-                autoComplete="email"
-              />
-            </label>
-
-            <label style={{ display: "grid", gap: 6, fontSize: 13, opacity: 0.9 }}>
-              Password
-              <input
-                placeholder="••••••••"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ padding: 12, borderRadius: 12, border: "1px solid #ccc" }}
-                autoComplete="current-password"
-              />
-            </label>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-              <Button type="submit" disabled={loading || !email || !password}>
-                {loading ? "…" : "Sign In"}
-              </Button>
-              <Button variant="secondary" onClick={signUp} disabled={loading || !email || !password}>
-                {loading ? "…" : "Sign Up"}
-              </Button>
-            </div>
-          </form>
-
-          {msg ? (
-            <div style={{ marginTop: 12 }}>
-              <Pill text={msg} />
-            </div>
-          ) : null}
-        </Card>
-
-        <Card title="Quick links" subtitle="Browse first">
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Button href="/" variant="secondary">Home</Button>
-            <Button href="/sale" variant="secondary">Sale</Button>
-          </div>
-        </Card>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => { setMode('signin'); setError(null); setMessage(null); }}
+          aria-pressed={mode === 'signin'}
+          style={{ padding: '8px 12px' }}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode('signup'); setError(null); setMessage(null); }}
+          aria-pressed={mode === 'signup'}
+          style={{ padding: '8px 12px' }}
+        >
+          Sign up
+        </button>
       </div>
-    </Container>
+
+      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span>Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            autoComplete="email"
+            required
+            style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
+          />
+        </label>
+
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span>Password</span>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            required
+            style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ padding: 10, borderRadius: 8, border: '1px solid #ccc' }}
+        >
+          {loading ? 'Working…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+        </button>
+
+        {error && <p style={{ color: 'red', marginTop: 4 }}>{error}</p>}
+        {message && <p style={{ marginTop: 4 }}>{message}</p>}
+      </form>
+
+      <p style={{ marginTop: 18, opacity: 0.8, fontSize: 13 }}>
+        Note: If signup works but email confirm never arrives, check Supabase Auth URL Configuration.
+      </p>
+    </main>
   );
 }
