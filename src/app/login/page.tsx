@@ -39,7 +39,7 @@ export default function LoginPage() {
           password,
           options: {
             // If you don't have /auth/callback yet, change to `${process.env.NEXT_PUBLIC_APP_URL}`
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+            emailRedirectTo: "https://app.skopi.io/auth/callback?next=/me/purchases",
           },
         });
 

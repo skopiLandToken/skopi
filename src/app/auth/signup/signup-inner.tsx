@@ -26,7 +26,7 @@ export default function SignupInner() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: "https://app.skopi.io/auth/callback?next=/me/purchases",
         data: { ref },
       },
     });
