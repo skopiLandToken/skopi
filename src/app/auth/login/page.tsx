@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -16,9 +16,13 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = supabaseBrowser();
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        // IMPORTANT: route through callback so the session cookie gets set
+        emailRedirectTo: `https://app.skopi.io/auth/callback?next=/me/purchases`,
+      },
     });
 
     setLoading(false);
@@ -29,7 +33,9 @@ export default function LoginPage() {
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Log in</h1>
-      <p style={{ opacity: 0.85, marginBottom: 16 }}>We’ll email you a secure sign-in link.</p>
+      <p style={{ opacity: 0.85, marginBottom: 16 }}>
+        We’ll email you a secure sign-in link.
+      </p>
 
       <form onSubmit={login} style={{ display: "grid", gap: 12 }}>
         <input
@@ -40,10 +46,16 @@ export default function LoginPage() {
           required
           style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid #333" }}
         />
+
         <button
           type="submit"
           disabled={loading}
-          style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
+          style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "1px solid #333",
+            cursor: "pointer",
+          }}
         >
           {loading ? "Sending…" : "Send login link"}
         </button>
