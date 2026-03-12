@@ -23,9 +23,10 @@ export default function SignupInner() {
     const supabase = supabaseBrowser();
     const ref = (localStorage.getItem("skopi_ref") || "").trim().toUpperCase() || null;
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signUp({
       email,
-      options: {
+      password,
+      options; {
         emailRedirectTo: "https://app.skopi.io/auth/callback?next=/me/purchases",
         data: { ref },
       },
@@ -39,7 +40,7 @@ export default function SignupInner() {
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Create your SKOpi account</h1>
-      <p style={{ opacity: 0.85, marginBottom: 16 }}>We’ll email you a secure sign-in link.</p>
+      <p style={{ opacity: 0.85, marginBottom: 16 }}>“Create account with email + password.”</p>
 
       <form onSubmit={signup} style={{ display: "grid", gap: 12 }}>
         <input
