@@ -1,4 +1,8 @@
-import { NextResponse } from "next/server";
+from pathlib import Path
+
+TARGET = Path("src/app/api/verify-real/[id]/route.ts")
+
+TS = r"""import { NextResponse } from "next/server";
 import { verifyIntentById } from "@/lib/verify-intent";
 
 export const dynamic = "force-dynamic";
@@ -43,3 +47,12 @@ export async function POST(
     );
   }
 }
+"""
+
+def main():
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    TARGET.write_text(TS, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
