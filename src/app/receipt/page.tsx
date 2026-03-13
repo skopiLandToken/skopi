@@ -138,7 +138,7 @@ export default async function ReceiptPage(props: {
 
           <div style={{ marginTop: 12 }}>
             <div style={{ fontWeight: 800, marginBottom: 6 }}>Reference pubkey</div>
-            <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 12 }}>
+            <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.92)", border: "1px solid rgba(255,255,255,0.10)", padding: 10, borderRadius: 12 }}>
               {intent.reference_pubkey}
             </div>
             <div style={{ marginTop: 10 }}>
