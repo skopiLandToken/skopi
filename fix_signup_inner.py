@@ -1,4 +1,8 @@
-"use client";
+from pathlib import Path
+
+TARGET = Path("src/app/auth/signup/signup-inner.tsx")
+
+TSX = r""""use client";
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -98,3 +102,12 @@ export default function SignupInner() {
     </div>
   );
 }
+"""
+
+def main():
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    TARGET.write_text(TSX, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
