@@ -1,4 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+from pathlib import Path
+
+TARGET = Path("src/app/receipt/[id]/page.tsx")
+
+TSX = r"""import { createClient } from "@supabase/supabase-js";
 import { Container, Card, Button, Pill } from "../../components/ui";
 import PayPhantomButton from "../components/pay-phantom-button";
 import VerifyRealButton from "../components/verify-real-button";
@@ -183,3 +187,11 @@ export default async function ReceiptPage(props: { params: { id: string } }) {
     </Container>
   );
 }
+"""
+
+def main():
+    TARGET.write_text(TSX, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
