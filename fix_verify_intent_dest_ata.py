@@ -1,4 +1,8 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+from pathlib import Path
+
+TARGET = Path("src/lib/verify-intent.ts")
+
+TS = r"""import { Connection, PublicKey } from "@solana/web3.js";
 import { createClient } from "@supabase/supabase-js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
@@ -167,3 +171,11 @@ export async function listCreatedIntents(limit = 25) {
 
   return { data: (data || []) as IntentRow[], error };
 }
+"""
+
+def main():
+    TARGET.write_text(TS, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
