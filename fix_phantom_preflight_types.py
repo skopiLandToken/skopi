@@ -1,4 +1,8 @@
-"use client";
+from pathlib import Path
+
+TARGET = Path("src/app/receipt/components/pay-phantom-button.tsx")
+
+TSX = r""""use client";
 
 import { useState } from "react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
@@ -107,8 +111,8 @@ export default function PayPhantomButton(props: {
 
         setMsg(
           "ERROR: Transaction simulation failed.\n" +
-            `Reason: ${errStr}\n` +
-            (lastLog ? `Last log: ${lastLog}\n` : "") +
+            f"Reason: {errStr}\n" +
+            (lastLog ? f"Last log: {lastLog}\n" : "") +
             "Common causes: no USDC balance, missing USDC token account, or RPC issues."
         );
         return;
@@ -199,3 +203,16 @@ export default function PayPhantomButton(props: {
     </div>
   );
 }
+"""
+
+def main():
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    # fix a small Python f-string artifact in TSX (we used f"..." inside the TSX string)
+    fixed = TSX.replace('f"Reason: {errStr}\\n"', '`Reason: ${errStr}\\n`').replace(
+        'f"Last log: {lastLog}\\n"', '`Last log: ${lastLog}\\n`'
+    )
+    TARGET.write_text(fixed, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
