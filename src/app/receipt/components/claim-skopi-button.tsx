@@ -2,18 +2,6 @@
 
 import { useState } from "react";
 
-type PhantomProvider = {
-  isPhantom?: boolean;
-  connect: (opts?: any) => Promise<{ publicKey: { toBase58: () => string } }>;
-  signMessage?: (msg: Uint8Array) => Promise<Uint8Array>;
-};
-
-declare global {
-  interface Window {
-    solana?: PhantomProvider;
-  }
-}
-
 function toBase64(u8: Uint8Array) {
   let s = "";
   for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
@@ -31,7 +19,14 @@ export default function ClaimSkopiButton(props: { intentId: string }) {
     setTx(null);
 
     try {
-      const provider = window.solana;
+      const provider = (window as Window & {
+        solana?: {
+          isPhantom?: boolean;
+          connect: (opts?: any) => Promise<{ publicKey: { toBase58: () => string } }>;
+          signMessage?: (msg: Uint8Array) => Promise<Uint8Array>;
+        };
+      }).solana;
+
       if (!provider?.isPhantom) {
         setMsg("ERROR: Phantom not found. Install Phantom wallet.");
         return;
@@ -118,19 +113,28 @@ export default function ClaimSkopiButton(props: { intentId: string }) {
           <div
             style={{
               padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,80,80,0.70)",
-              background: "rgba(255,80,80,0.10)",
-              color: "rgba(255,220,220,0.98)",
-              fontWeight: 800,
-              whiteSpace: "pre-wrap",
-              fontSize: 13,
+              borderRadius: 10,
+              background: "rgba(255, 80, 80, 0.12)",
+              border: "1px solid rgba(255, 80, 80, 0.28)",
+              color: "#ffd7d7",
+              fontSize: 14,
             }}
           >
             {msg}
           </div>
         ) : (
-          <div style={{ fontSize: 13, opacity: 0.9, whiteSpace: "pre-wrap" }}>{msg}</div>
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.9)",
+              fontSize: 14,
+            }}
+          >
+            {msg}
+          </div>
         )
       ) : null}
     </div>
