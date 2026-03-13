@@ -1,4 +1,8 @@
-"use client";
+from pathlib import Path
+
+TARGET = Path("src/app/receipt/components/pay-phantom-button.tsx")
+
+TSX = r""""use client";
 
 import { useState } from "react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
@@ -147,3 +151,11 @@ export default function PayPhantomButton(props: {
     </div>
   );
 }
+"""
+
+def main():
+    TARGET.write_text(TSX, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
