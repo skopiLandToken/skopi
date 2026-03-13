@@ -1,4 +1,8 @@
-'use client';
+from pathlib import Path
+
+TARGET = Path("src/app/auth/login/page.tsx")
+
+TSX = r"""'use client';
 
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -78,3 +82,12 @@ export default function LoginPage() {
     </div>
   );
 }
+"""
+
+def main():
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    TARGET.write_text(TSX, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
