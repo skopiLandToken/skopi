@@ -27,7 +27,6 @@ export default function SignupInner() {
       email,
       password,
       options; {
-        emailRedirectTo: "https://app.skopi.io/auth/callback?next=/me/purchases",
         data: { ref },
       },
     });
