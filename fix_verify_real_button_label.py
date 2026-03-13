@@ -1,4 +1,8 @@
-'use client';
+from pathlib import Path
+
+TARGET = Path("src/app/receipt/components/verify-real-button.tsx")
+
+TSX = r"""'use client';
 
 import { useState } from "react";
 
@@ -76,3 +80,12 @@ export default function VerifyRealButton(props: { intentId: string }) {
     </div>
   );
 }
+"""
+
+def main():
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    TARGET.write_text(TSX, encoding="utf-8")
+    print(f"✅ Overwrote {TARGET}")
+
+if __name__ == "__main__":
+    main()
