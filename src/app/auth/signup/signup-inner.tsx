@@ -26,7 +26,7 @@ export default function SignupInner() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options; {
+      options: {
         data: { ref },
       },
     });
