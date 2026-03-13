@@ -16,6 +16,17 @@ function isAdminEmail(email: string | null | undefined) {
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
+  // Redirect legacy receipt path /receipt/<uuid> -> /receipt?id=<uuid>
+  // We do this here because Next params are unreliable for /receipt/[id] in this build.
+  const path = req.nextUrl.pathname;
+  const m = path.match(/^\/receipt\/([0-9a-fA-F-]{36})$/);
+  if (m) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/receipt";
+    url.searchParams.set("id", m[1]);
+    return NextResponse.redirect(url);
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
