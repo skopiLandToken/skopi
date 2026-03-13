@@ -71,6 +71,15 @@ export default function PayPhantomButton(props: {
       }
 
       const { publicKey } = await provider.connect();
+      // Save payer wallet on the intent (so we can deliver/claim SKOPI later)
+      try {
+        await fetch(`/api/purchase-intents/${props.intentId}/set-payer`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ payer: publicKey.toBase58() }),
+        });
+      } catch {}
+
       const payer = publicKey;
 
       const connection = new Connection(rpcUrl, "confirmed");
