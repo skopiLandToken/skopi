@@ -23,7 +23,10 @@ export default function ClaimSkopiButton(props: { intentId: string }) {
         solana?: {
           isPhantom?: boolean;
           connect: (opts?: any) => Promise<{ publicKey: { toBase58: () => string } }>;
-          signMessage?: (msg: Uint8Array) => Promise<Uint8Array>;
+          signMessage?: (
+            msg: Uint8Array,
+            display?: string
+          ) => Promise<Uint8Array | { signature: Uint8Array }>;
         };
       }).solana;
 
@@ -33,7 +36,12 @@ export default function ClaimSkopiButton(props: { intentId: string }) {
       }
 
       const { publicKey } = await provider.connect();
-      const wallet = publicKey.toBase58();
+      const wallet = publicKey?.toBase58?.();
+
+      if (!wallet) {
+        setMsg("ERROR: Could not read Phantom wallet address.");
+        return;
+      }
 
       if (!provider.signMessage) {
         setMsg("ERROR: Phantom signMessage not available. Enable it or update Phantom.");
@@ -44,14 +52,30 @@ export default function ClaimSkopiButton(props: { intentId: string }) {
       const bytes = new TextEncoder().encode(message);
 
       setMsg("Signing claim request…");
-      const sigBytes = await provider.signMessage(bytes);
+      const signed = await provider.signMessage(bytes, "utf8");
+
+      let sigBytes: Uint8Array | undefined;
+
+      if (signed instanceof Uint8Array) {
+        sigBytes = signed;
+      } else if (signed && typeof signed === "object" && "signature" in signed) {
+        sigBytes = signed.signature;
+      }
+
+      if (!sigBytes || !(sigBytes instanceof Uint8Array) || sigBytes.length === 0) {
+        setMsg("ERROR: Phantom returned an invalid signature.");
+        return;
+      }
+
       const signatureB64 = toBase64(sigBytes);
 
       setMsg("Claiming SKOPI…");
+      const payload = { wallet, signature: signatureB64 };
+
       const res = await fetch(`/api/claim-skopi/${props.intentId}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet, signature: signatureB64 }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json().catch(() => ({}));
