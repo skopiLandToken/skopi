@@ -74,7 +74,7 @@ export default function BuyClient() {
         }
 
         if (!cancelled) {
-          router.push(`/receipt/${intentId}`);
+          router.push(`/receipt?id=${intentId}`);
         }
       } catch (e: any) {
         if (!cancelled) {
