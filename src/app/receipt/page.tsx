@@ -3,6 +3,7 @@ import { Container, Card, Button, Pill } from "../components/ui";
 import PayPhantomButton from "./components/pay-phantom-button";
 import VerifyRealButton from "./components/verify-real-button";
 import VerifyButton from "./components/verify-button";
+import ClaimSkopiButton from "./components/claim-skopi-button";
 import CopyButton from "../components/CopyButton";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -66,7 +67,7 @@ export default async function ReceiptPage(props: { searchParams?: any }) {
 
   const { data: intent, error } = await supabase
     .from("purchase_intents")
-    .select("id,status,tranche_id,price_usdc_used,tokens_skopi,amount_usdc_atomic,reference_pubkey,created_at,confirmed_at,tx_signature,failure_reason,updated_at")
+    .select("id,status,tranche_id,price_usdc_used,tokens_skopi,amount_usdc_atomic,reference_pubkey,created_at,confirmed_at,tx_signature,failure_reason,updated_at,payer_pubkey,skopi_claimed_at,skopi_tx_signature")
     .eq("id", id)
     .single();
 
@@ -217,6 +218,34 @@ export default async function ReceiptPage(props: { searchParams?: any }) {
             ) : null}
           </div>
         </Card>
+
+        <Card title={undefined} subtitle={undefined} right={stepHeader(3, "Claim SKOPI")}>
+          {!isConfirmed ? (
+            <div style={{ opacity: 0.85 }}>
+              Claim is available after your payment is confirmed.
+            </div>
+          ) : intent.skopi_claimed_at ? (
+            <div style={{ padding: 14, borderRadius: 16, border: "1px solid rgba(0,255,140,0.35)", background: "rgba(0,255,140,0.08)" }}>
+              <div style={{ fontWeight: 900 }}>Claimed ✅</div>
+              <div style={{ marginTop: 6, opacity: 0.85 }}>
+                SKOPI has been sent to your wallet.
+              </div>
+              {intent.skopi_tx_signature ? (
+                <div style={{ marginTop: 10, fontFamily: "monospace", wordBreak: "break-all", opacity: 0.85 }}>
+                  skopi tx: {String(intent.skopi_tx_signature)}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ opacity: 0.85 }}>
+                Click Claim to receive your SKOPI tokens in your connected wallet.
+              </div>
+              <ClaimSkopiButton intentId={intent.id} />
+            </div>
+          )}
+        </Card>
+
       </div>
     </Container>
   );
