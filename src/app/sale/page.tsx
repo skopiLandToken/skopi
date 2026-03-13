@@ -35,6 +35,21 @@ export default async function SalePage({
       <div style={{ display: "grid", gap: 14 }}>
         <div>
           <h1 style={{ margin: 0 }}>Sale</h1>
+      <div style={{ marginTop: 12 }}>
+        <section className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+            <div>
+              <div className="card-title">Quick test</div>
+              <div className="card-subtitle">Create a $1 purchase intent for fast testing.</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href="/buy?amount=1" className="btn btn-primary">Buy $1 (test)</a>
+            <a href="/buy?amount=10" className="btn btn-secondary">Buy $10</a>
+          </div>
+        </section>
+      </div>
+
           <div style={{ marginTop: 8, opacity: 0.85, maxWidth: 840 }}>
             Pick a tranche, then choose an amount. You’ll be redirected to a receipt after the intent is created.
           </div>
