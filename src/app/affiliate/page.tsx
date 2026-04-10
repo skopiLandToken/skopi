@@ -74,6 +74,16 @@ type ClickRow = {
   created_at: string;
 };
 
+type LeaderboardRow = {
+  referral_code: string;
+  created_at: string;
+  unique_clicks: number;
+  total_clicks: number;
+  confirmed_purchases: number;
+  revenue_influenced_usdc: number;
+  total_commission_usdc: number;
+};
+
 function toBigInt(value: string | number | bigint | null | undefined): bigint {
   if (typeof value === "bigint") return value;
   if (typeof value === "number") return BigInt(Math.trunc(value));
@@ -264,8 +274,8 @@ export default async function AffiliatePage({
 
   const rawTab = resolvedSearchParams?.tab;
   const tab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const activeTab = ["overview", "traffic", "conversions", "commissions", "payouts"].includes(tab || "")
-    ? (tab as "overview" | "traffic" | "conversions" | "commissions" | "payouts")
+  const activeTab = ["overview", "traffic", "conversions", "commissions", "payouts", "leaderboard"].includes(tab || "")
+    ? (tab as "overview" | "traffic" | "conversions" | "commissions" | "payouts" | "leaderboard")
     : "overview";
 
   const supabase = await supabaseServer();
@@ -304,7 +314,7 @@ export default async function AffiliatePage({
   const refCode = partner.referral_code;
   const refLink = `${APP_URL}/sale?ref=${encodeURIComponent(refCode)}`;
 
-  const [commissionsRes, payoutsRes, referralsRes, purchasesRes, clicksRes] = await Promise.all([
+  const [commissionsRes, payoutsRes, referralsRes, purchasesRes, clicksRes, leaderboardRes] = await Promise.all([
     supabase
       .from("affiliate_commissions")
       .select("id,created_at,intent_id,level,ref_code,usdc_atomic,status,payable_at,paid_at,paid_tx")
@@ -340,6 +350,8 @@ export default async function AffiliatePage({
       .eq("ref_code", refCode)
       .order("created_at", { ascending: false })
       .limit(200),
+
+    supabase.rpc("get_affiliate_leaderboard"),
   ]);
 
   const commissions = (commissionsRes.data ?? []) as CommissionRow[];
@@ -347,6 +359,7 @@ export default async function AffiliatePage({
   const referrals = (referralsRes.data ?? []) as ReferralRow[];
   const purchases = (purchasesRes.data ?? []) as PurchaseRow[];
   const clicks = (clicksRes.data ?? []) as ClickRow[];
+  const leaderboard = (leaderboardRes.data ?? []) as LeaderboardRow[];
 
   const pendingRows = commissions.filter((r) => r.status === "pending");
   const paidRows = commissions.filter((r) => r.status === "paid");
@@ -377,8 +390,6 @@ export default async function AffiliatePage({
       totalAtomic,
       pendingAtomic,
       paidAtomic,
-      pendingCount: pending.length,
-      paidCount: paid.length,
     };
   });
 
@@ -433,13 +444,26 @@ export default async function AffiliatePage({
     formatDateTime(row.created_at),
   ]);
 
+  const leaderboardRows = leaderboard.map((row, idx) => [
+    String(idx + 1),
+    row.referral_code,
+    String(row.unique_clicks || 0),
+    String(row.confirmed_purchases || 0),
+    formatMoney(Number(row.revenue_influenced_usdc || 0)),
+    formatMoney(Number(row.total_commission_usdc || 0)),
+    formatDate(row.created_at),
+  ]);
+
+  const myRankIndex = leaderboard.findIndex((r) => r.referral_code === refCode);
+  const myRank = myRankIndex >= 0 ? myRankIndex + 1 : "—";
+
   return (
     <Container>
       <div style={{ display: "grid", gap: 14 }}>
         <div>
           <h1 style={{ margin: 0 }}>Affiliate Dashboard</h1>
           <div style={{ opacity: 0.72, marginTop: 6 }}>
-            Track your link traffic, conversions, commissions, and payouts.
+            Track your link traffic, conversions, commissions, payouts, and leaderboard position.
           </div>
         </div>
 
@@ -494,6 +518,7 @@ export default async function AffiliatePage({
             <TabButton active={activeTab === "conversions"} href={tabHref("conversions")} label="Conversions" />
             <TabButton active={activeTab === "commissions"} href={tabHref("commissions")} label="Commissions" />
             <TabButton active={activeTab === "payouts"} href={tabHref("payouts")} label="Payouts" />
+            <TabButton active={activeTab === "leaderboard"} href={tabHref("leaderboard")} label="Leaderboard" />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
@@ -533,17 +558,11 @@ export default async function AffiliatePage({
             </div>
 
             <Card title="Recent Confirmed Purchases" subtitle="Latest confirmed purchases influenced by your link">
-              <DataTable
-                headers={["Intent", "USDC", "SKOpi", "Confirmed"]}
-                rows={recentPurchasesRows}
-              />
+              <DataTable headers={["Intent", "USDC", "SKOpi", "Confirmed"]} rows={recentPurchasesRows} />
             </Card>
 
             <Card title="Recent Commissions" subtitle="Latest commission activity across all levels">
-              <DataTable
-                headers={["Level", "Amount", "Status", "Created", "Paid"]}
-                rows={recentCommissionsRows}
-              />
+              <DataTable headers={["Level", "Amount", "Status", "Created", "Paid"]} rows={recentCommissionsRows} />
             </Card>
           </div>
         ) : null}
@@ -558,17 +577,11 @@ export default async function AffiliatePage({
             </div>
 
             <Card title="Traffic Sources" subtitle="Top click sources seen on your referral traffic">
-              <DataTable
-                headers={["Source", "Clicks"]}
-                rows={clickSourceBreakdown.map((row) => [row.label, String(row.count)])}
-              />
+              <DataTable headers={["Source", "Clicks"]} rows={clickSourceBreakdown.map((row) => [row.label, String(row.count)])} />
             </Card>
 
             <Card title="Recent Clicks" subtitle="Latest logged visits to your referral link">
-              <DataTable
-                headers={["Session", "UTM Source", "UTM Campaign", "Landing Path", "Created"]}
-                rows={recentClickRows}
-              />
+              <DataTable headers={["Session", "UTM Source", "UTM Campaign", "Landing Path", "Created"]} rows={recentClickRows} />
             </Card>
           </div>
         ) : null}
@@ -583,17 +596,11 @@ export default async function AffiliatePage({
             </div>
 
             <Card title="Referral Sources" subtitle="Most common last-touch / first-touch source labels">
-              <DataTable
-                headers={["Source", "Referrals"]}
-                rows={referralSourceBreakdown.map((row) => [row.label, String(row.count)])}
-              />
+              <DataTable headers={["Source", "Referrals"]} rows={referralSourceBreakdown.map((row) => [row.label, String(row.count)])} />
             </Card>
 
             <Card title="Recent Confirmed Purchases" subtitle="Latest influenced conversions">
-              <DataTable
-                headers={["Intent", "USDC", "SKOpi", "Confirmed"]}
-                rows={recentPurchasesRows}
-              />
+              <DataTable headers={["Intent", "USDC", "SKOpi", "Confirmed"]} rows={recentPurchasesRows} />
             </Card>
           </div>
         ) : null}
@@ -612,10 +619,7 @@ export default async function AffiliatePage({
             </div>
 
             <Card title="Commission History" subtitle="All recent commission rows">
-              <DataTable
-                headers={["Level", "Amount", "Status", "Created", "Paid"]}
-                rows={recentCommissionsRows}
-              />
+              <DataTable headers={["Level", "Amount", "Status", "Created", "Paid"]} rows={recentCommissionsRows} />
             </Card>
           </div>
         ) : null}
@@ -630,9 +634,24 @@ export default async function AffiliatePage({
             </div>
 
             <Card title="Payout History" subtitle="Latest payout records">
+              <DataTable headers={["Amount", "Status", "Reference", "Paid", "Created"]} rows={payoutRows} />
+            </Card>
+          </div>
+        ) : null}
+
+        {activeTab === "leaderboard" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <StatCard title="Your Rank" value={String(myRank)} />
+              <StatCard title="Leaderboard Entries" value={String(leaderboard.length)} />
+              <StatCard title="Top Unique Clicks" value={String(leaderboard[0]?.unique_clicks || 0)} />
+              <StatCard title="Top Commissions" value={formatMoney(Number(leaderboard[0]?.total_commission_usdc || 0))} />
+            </div>
+
+            <Card title="Affiliate Leaderboard" subtitle="Top affiliates by commissions, revenue, and traffic">
               <DataTable
-                headers={["Amount", "Status", "Reference", "Paid", "Created"]}
-                rows={payoutRows}
+                headers={["Rank", "Code", "Unique Clicks", "Purchases", "Revenue", "Commissions", "Joined"]}
+                rows={leaderboardRows}
               />
             </Card>
           </div>
