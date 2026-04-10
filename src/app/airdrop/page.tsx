@@ -11,6 +11,23 @@ type AirdropLeaderboardRow = {
   created_at: string;
 };
 
+type ActiveCampaignRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  details: string | null;
+  status: string;
+  start_at: string | null;
+  end_at: string | null;
+  pool_tokens: number;
+  per_user_cap: number;
+  max_claims: number | null;
+  distributed_tokens: number;
+  video_url: string | null;
+  claimed_count: number;
+  remaining_spots: number;
+};
+
 function formatTokens(value: number | string | null | undefined) {
   const num = Number(value || 0);
   return new Intl.NumberFormat("en-US", {
@@ -32,8 +49,18 @@ function shortWallet(value: string | null | undefined) {
 
 export default async function AirdropPage() {
   const supabase = await supabaseServer();
-  const { data: leaderboardRes } = await supabase.rpc("get_airdrop_leaderboard");
+
+  const [{ data: leaderboardRes }, { data: campaignRes }] = await Promise.all([
+    supabase.rpc("get_airdrop_leaderboard"),
+    supabase.rpc("get_active_airdrop_campaign_summary"),
+  ]);
+
   const leaderboard = (leaderboardRes ?? []) as AirdropLeaderboardRow[];
+  const activeCampaign = ((campaignRes ?? [])[0] ?? null) as ActiveCampaignRow | null;
+
+  const rewardSkopi = Number(activeCampaign?.per_user_cap || 0);
+  const salePricePerToken = 0.10;
+  const rewardUsdc = rewardSkopi * salePricePerToken;
 
   return (
     <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto", fontFamily: "ui-sans-serif, system-ui" }}>
@@ -59,16 +86,16 @@ export default async function AirdropPage() {
             fontWeight: 700,
           }}
         >
-          SKOpi Community Bonus Program
+          SKOpi Community Bonus Rewards
         </div>
 
         <h1 style={{ fontSize: 36, lineHeight: 1.1, margin: "0 0 10px 0", fontWeight: 800 }}>
-          SKOpi Airdrop
+          SKOpi Community Bonus Rewards
         </h1>
 
         <p style={{ fontSize: 16, opacity: 0.88, maxWidth: 760, marginBottom: 24 }}>
-          Verified bonus campaigns are not live yet. This page will be used for future SKOpi
-          community reward tasks, partner promotions, and approved airdrop bonus opportunities.
+          This page is used for SKOpi community reward campaigns, signup bonuses,
+          partner promotions, approved airdrop opportunities, and reward tracking.
         </p>
 
         <div
@@ -88,7 +115,9 @@ export default async function AirdropPage() {
             }}
           >
             <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Status</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>Not Live Yet</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>
+              {activeCampaign ? activeCampaign.status : "No Active Campaign"}
+            </div>
           </section>
 
           <section
@@ -99,8 +128,8 @@ export default async function AirdropPage() {
               background: "rgba(255,255,255,.02)",
             }}
           >
-            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Campaigns</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>0 Active</div>
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Active Campaigns</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{activeCampaign ? 1 : 0}</div>
           </section>
 
           <section
@@ -115,6 +144,68 @@ export default async function AirdropPage() {
             <div style={{ fontSize: 24, fontWeight: 800 }}>{leaderboard.length}</div>
           </section>
         </div>
+
+        {activeCampaign ? (
+          <div
+            style={{
+              border: "1px solid rgba(212, 175, 55, 0.24)",
+              borderRadius: 16,
+              padding: 18,
+              background: "rgba(212, 175, 55, 0.08)",
+              marginBottom: 18,
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: 10, fontSize: 20 }}>
+              {activeCampaign.name}
+            </div>
+
+            <div style={{ marginBottom: 14, opacity: 0.88 }}>
+              {activeCampaign.description || "Active SKOpi bonus campaign."}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Reward</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{formatTokens(rewardSkopi)} SKOPI</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Est. USDC Value</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>${rewardUsdc.toFixed(2)}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Claimed / Joined</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>
+                  {activeCampaign.claimed_count} / {activeCampaign.max_claims ?? "—"}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Remaining</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{activeCampaign.remaining_spots}</div>
+              </div>
+            </div>
+
+            <details style={{ marginTop: 16 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+                Campaign details
+              </summary>
+              <div style={{ marginTop: 12, lineHeight: 1.7, opacity: 0.9 }}>
+                {activeCampaign.details || "No additional campaign details yet."}
+                <div style={{ marginTop: 10 }}>
+                  Start: {formatDate(activeCampaign.start_at)} • End: {formatDate(activeCampaign.end_at)}
+                </div>
+              </div>
+            </details>
+          </div>
+        ) : null}
 
         <div
           style={{
@@ -131,6 +222,7 @@ export default async function AirdropPage() {
             <li>referral and promo reward tasks</li>
             <li>verified wallet submissions</li>
             <li>future hourly / daily reward tracking</li>
+            <li>campaign reward estimates in USDC value</li>
           </ul>
         </div>
 
@@ -201,11 +293,6 @@ export default async function AirdropPage() {
             </div>
           )}
         </div>
-
-        <p style={{ marginTop: 18, marginBottom: 0, opacity: 0.7 }}>
-          Once the first real campaign is launched, this page will show active tasks, bonus amounts,
-          submission rules, live remaining allocation, and the current leaderboard.
-        </p>
       </div>
     </main>
   );
