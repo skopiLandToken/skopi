@@ -1,66 +1,162 @@
 import { supabaseServer } from "@/lib/supabase-server";
+import { Pill } from "../components/ui";
 
 export const dynamic = "force-dynamic";
 
-type AirdropLeaderboardRow = {
-  wallet_address: string;
-  total_tokens: number;
-  claimable_tokens: number;
-  locked_tokens: number;
-  status: string;
-  created_at: string;
-};
+const PAGE_SIZE = 20;
 
-type ActiveCampaignRow = {
+type CampaignRow = {
   id: string;
   name: string;
   description: string | null;
-  details: string | null;
-  status: string;
+  status: string | null;
   start_at: string | null;
   end_at: string | null;
-  pool_tokens: number;
-  per_user_cap: number;
+  lock_days: number | null;
+  pool_tokens: number | null;
+  per_user_cap: number | null;
   max_claims: number | null;
-  distributed_tokens: number;
   video_url: string | null;
-  claimed_count: number;
-  remaining_spots: number;
+  details: string | null;
 };
 
-function formatTokens(value: number | string | null | undefined) {
-  const num = Number(value || 0);
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(num);
-}
+type CampaignStatsRow = {
+  id: string;
+  name: string;
+  max_claims: number | null;
+  pool_tokens: number | null;
+  per_user_cap: number | null;
+  distributed_tokens: number | null;
+  allocation_rows: number;
+  submission_rows: number;
+};
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString();
 }
 
-function shortWallet(value: string | null | undefined) {
-  if (!value) return "—";
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 }
 
-export default async function AirdropPage() {
+function embedUrl(url: string | null | undefined) {
+  if (!url) return null;
+  if (url.includes("youtube.com/embed/")) return url;
+  return url;
+}
+
+function toNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value);
+  return 0;
+}
+
+function getTheme(idx: number) {
+  const cardThemes = [
+    {
+      border: "1px solid rgba(34,211,238,.22)",
+      background: "rgba(14, 44, 56, 0.92)",
+      pillBorder: "1px solid rgba(34,211,238,.35)",
+      pillBg: "rgba(34,211,238,.12)",
+    },
+    {
+      border: "1px solid rgba(212,175,55,.24)",
+      background: "rgba(44, 38, 18, 0.92)",
+      pillBorder: "1px solid rgba(212,175,55,.35)",
+      pillBg: "rgba(212,175,55,.12)",
+    },
+    {
+      border: "1px solid rgba(168,85,247,.24)",
+      background: "rgba(32, 20, 48, 0.92)",
+      pillBorder: "1px solid rgba(168,85,247,.35)",
+      pillBg: "rgba(168,85,247,.12)",
+    },
+    {
+      border: "1px solid rgba(16,185,129,.24)",
+      background: "rgba(14, 42, 34, 0.92)",
+      pillBorder: "1px solid rgba(16,185,129,.35)",
+      pillBg: "rgba(16,185,129,.12)",
+    },
+    {
+      border: "1px solid rgba(249,115,22,.24)",
+      background: "rgba(52, 28, 16, 0.92)",
+      pillBorder: "1px solid rgba(249,115,22,.35)",
+      pillBg: "rgba(249,115,22,.12)",
+    },
+  ];
+
+  return cardThemes[idx % cardThemes.length];
+}
+
+function StatBox({
+  label,
+  value,
+  subvalue,
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,.10)",
+        borderRadius: 14,
+        padding: 12,
+        background: "rgba(8,12,20,.55)",
+      }}
+    >
+      <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontWeight: 800 }}>{value}</div>
+      <div style={{ opacity: 0.75, marginTop: 4 }}>{subvalue || " "}</div>
+    </div>
+  );
+}
+
+export default async function AirdropPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+}) {
+  const resolvedSearchParams =
+    searchParams && typeof (searchParams as Promise<Record<string, string | string[] | undefined>>).then === "function"
+      ? await (searchParams as Promise<Record<string, string | string[] | undefined>>)
+      : (searchParams as Record<string, string | string[] | undefined>) || {};
+
+  const rawPage = resolvedSearchParams?.page;
+  const pageParam = Array.isArray(rawPage) ? rawPage[0] : rawPage;
+  const currentPage = Math.max(1, Number(pageParam || "1") || 1);
+
   const supabase = await supabaseServer();
 
-  const [{ data: leaderboardRes }, { data: campaignRes }] = await Promise.all([
-    supabase.rpc("get_airdrop_leaderboard"),
-    supabase.rpc("get_active_airdrop_campaign_summary"),
-  ]);
+  const { data: campaigns } = await supabase
+    .from("airdrop_campaigns")
+    .select("id,name,description,status,start_at,end_at,lock_days,pool_tokens,per_user_cap,max_claims,video_url,details")
+    .order("created_at", { ascending: false });
 
-  const leaderboard = (leaderboardRes ?? []) as AirdropLeaderboardRow[];
-  const activeCampaign = ((campaignRes ?? [])[0] ?? null) as ActiveCampaignRow | null;
+  const { data: statsRows } = await supabase.rpc("get_airdrop_campaign_stats_list");
+  const statsMap = new Map<string, CampaignStatsRow>();
+  for (const row of (statsRows || []) as CampaignStatsRow[]) {
+    statsMap.set(row.id, row);
+  }
 
-  const rewardSkopi = Number(activeCampaign?.per_user_cap || 0);
-  const salePricePerToken = 0.10;
-  const rewardUsdc = rewardSkopi * salePricePerToken;
+  const activeCampaigns = ((campaigns ?? []) as CampaignRow[]).filter((c) =>
+    (c.status || "").toLowerCase().includes("active")
+  );
+
+  const totalCampaigns = activeCampaigns.length;
+  const totalPages = Math.max(1, Math.ceil(totalCampaigns / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const pagedCampaigns = activeCampaigns.slice(startIndex, startIndex + PAGE_SIZE);
+
+  const hasActive = activeCampaigns.length > 0;
 
   return (
     <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto", fontFamily: "ui-sans-serif, system-ui" }}>
@@ -79,8 +175,8 @@ export default async function AirdropPage() {
             marginBottom: 12,
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(212, 175, 55, 0.40)",
-            background: "rgba(212, 175, 55, 0.14)",
+            border: "1px solid rgba(212,175,55,.40)",
+            background: "rgba(212,175,55,.14)",
             color: "#f3d36b",
             fontSize: 12,
             fontWeight: 700,
@@ -90,12 +186,11 @@ export default async function AirdropPage() {
         </div>
 
         <h1 style={{ fontSize: 36, lineHeight: 1.1, margin: "0 0 10px 0", fontWeight: 800 }}>
-          SKOpi Community Bonus Rewards
+          SKOpi Airdrop
         </h1>
 
         <p style={{ fontSize: 16, opacity: 0.88, maxWidth: 760, marginBottom: 24 }}>
-          This page is used for SKOpi community reward campaigns, signup bonuses,
-          partner promotions, approved airdrop opportunities, and reward tracking.
+          Verified bonus campaigns, community reward tasks, and approved SKOpi airdrop opportunities.
         </p>
 
         <div
@@ -106,194 +201,294 @@ export default async function AirdropPage() {
             marginBottom: 24,
           }}
         >
-          <section
-            style={{
-              border: "1px solid rgba(255,255,255,.10)",
-              borderRadius: 16,
-              padding: 18,
-              background: "rgba(255,255,255,.02)",
-            }}
-          >
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
             <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Status</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>
-              {activeCampaign ? activeCampaign.status : "No Active Campaign"}
-            </div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{hasActive ? "Active" : "Not Live Yet"}</div>
           </section>
 
-          <section
-            style={{
-              border: "1px solid rgba(255,255,255,.10)",
-              borderRadius: 16,
-              padding: 18,
-              background: "rgba(255,255,255,.02)",
-            }}
-          >
-            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Active Campaigns</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{activeCampaign ? 1 : 0}</div>
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Campaigns</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{activeCampaigns.length} Active</div>
           </section>
 
-          <section
-            style={{
-              border: "1px solid rgba(255,255,255,.10)",
-              borderRadius: 16,
-              padding: 18,
-              background: "rgba(255,255,255,.02)",
-            }}
-          >
-            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Leaderboard Entries</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{leaderboard.length}</div>
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Page</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{safePage} / {totalPages}</div>
           </section>
         </div>
 
-        {activeCampaign ? (
-          <div
-            style={{
-              border: "1px solid rgba(212, 175, 55, 0.24)",
-              borderRadius: 16,
-              padding: 18,
-              background: "rgba(212, 175, 55, 0.08)",
-              marginBottom: 18,
-            }}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 10, fontSize: 20 }}>
-              {activeCampaign.name}
-            </div>
-
-            <div style={{ marginBottom: 14, opacity: 0.88 }}>
-              {activeCampaign.description || "Active SKOpi bonus campaign."}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 14,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Reward</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>{formatTokens(rewardSkopi)} SKOPI</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Est. USDC Value</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>${rewardUsdc.toFixed(2)}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Claimed / Joined</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>
-                  {activeCampaign.claimed_count} / {activeCampaign.max_claims ?? "—"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Remaining</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>{activeCampaign.remaining_spots}</div>
-              </div>
-            </div>
-
-            <details style={{ marginTop: 16 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 800 }}>
-                Campaign details
-              </summary>
-              <div style={{ marginTop: 12, lineHeight: 1.7, opacity: 0.9 }}>
-                {activeCampaign.details || "No additional campaign details yet."}
-                <div style={{ marginTop: 10 }}>
-                  Start: {formatDate(activeCampaign.start_at)} • End: {formatDate(activeCampaign.end_at)}
-                </div>
-              </div>
-            </details>
-          </div>
-        ) : null}
-
         <div
           style={{
-            border: "1px solid rgba(34, 211, 238, 0.20)",
+            border: "1px solid rgba(34,211,238,.20)",
             borderRadius: 16,
             padding: 18,
-            background: "rgba(34, 211, 238, 0.06)",
+            background: "rgba(34,211,238,.06)",
             marginBottom: 18,
           }}
         >
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>What this page will be used for</div>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>What this page is for</div>
           <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, opacity: 0.9 }}>
             <li>approved community bonus campaigns</li>
             <li>referral and promo reward tasks</li>
             <li>verified wallet submissions</li>
             <li>future hourly / daily reward tracking</li>
-            <li>campaign reward estimates in USDC value</li>
           </ul>
         </div>
 
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,.10)",
-            borderRadius: 16,
-            padding: 18,
-            background: "rgba(255,255,255,.02)",
-            marginTop: 24,
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 12, fontSize: 20 }}>
-            Airdrop Leaderboard
-          </div>
-
-          {leaderboard.length === 0 ? (
-            <p style={{ margin: 0, opacity: 0.7 }}>
-              No airdrop allocations yet. Once real campaigns begin, this leaderboard will show the
-              top wallet allocations.
-            </p>
+        <div style={{ display: "grid", gap: 16 }}>
+          {pagedCampaigns.length === 0 ? (
+            <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 18, padding: 18, background: "rgba(255,255,255,.03)" }}>
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>No active campaigns yet</div>
+              <div style={{ opacity: 0.8 }}>As soon as a campaign is active, it will appear here.</div>
+            </section>
           ) : (
-            <div
-              style={{
-                border: "1px solid rgba(255,255,255,.10)",
-                borderRadius: 14,
-                overflow: "hidden",
-                background: "rgba(255,255,255,.03)",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "80px 1.2fr 1fr 1fr 1fr 120px 140px",
-                  background: "rgba(255,255,255,.04)",
-                  borderBottom: "1px solid rgba(255,255,255,.08)",
-                  fontWeight: 700,
-                  fontSize: 13,
-                }}
-              >
-                <div style={{ padding: 12 }}>Rank</div>
-                <div style={{ padding: 12 }}>Wallet</div>
-                <div style={{ padding: 12 }}>Total</div>
-                <div style={{ padding: 12 }}>Claimable</div>
-                <div style={{ padding: 12 }}>Locked</div>
-                <div style={{ padding: 12 }}>Status</div>
-                <div style={{ padding: 12 }}>Created</div>
-              </div>
+            pagedCampaigns.map((campaign, idx) => {
+              const modalId = `campaign-video-${startIndex + idx}`;
+              const videoSrc = embedUrl(campaign.video_url);
+              const stats = statsMap.get(campaign.id);
+              const theme = getTheme(startIndex + idx);
 
-              {leaderboard.map((row, idx) => (
-                <div
-                  key={`${row.wallet_address}-${idx}`}
+              const poolTokens = toNumber(stats?.pool_tokens ?? campaign.pool_tokens);
+              const perUserCap = toNumber(stats?.per_user_cap ?? campaign.per_user_cap);
+              const maxClaims = toNumber(stats?.max_claims ?? campaign.max_claims);
+              const claimedCount = toNumber(stats?.allocation_rows ?? 0);
+              const spotsLeft = Math.max(0, maxClaims - claimedCount);
+              const progressPct = maxClaims > 0 ? Math.min(100, (claimedCount / maxClaims) * 100) : 0;
+
+              return (
+                <section
+                  key={campaign.id}
                   style={{
+                    border: theme.border,
+                    borderRadius: 18,
+                    padding: 18,
+                    background: theme.background,
                     display: "grid",
-                    gridTemplateColumns: "80px 1.2fr 1fr 1fr 1fr 120px 140px",
-                    borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,.08)",
+                    gap: 16,
                   }}
                 >
-                  <div style={{ padding: 12 }}>{idx + 1}</div>
-                  <div style={{ padding: 12, fontFamily: "monospace" }}>{shortWallet(row.wallet_address)}</div>
-                  <div style={{ padding: 12 }}>{formatTokens(row.total_tokens)}</div>
-                  <div style={{ padding: 12 }}>{formatTokens(row.claimable_tokens)}</div>
-                  <div style={{ padding: 12 }}>{formatTokens(row.locked_tokens)}</div>
-                  <div style={{ padding: 12 }}>{row.status || "—"}</div>
-                  <div style={{ padding: 12 }}>{formatDate(row.created_at)}</div>
-                </div>
-              ))}
-            </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "start" }}>
+                    <div style={{ display: "grid", gap: 8, flex: "1 1 560px", minWidth: 320 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <Pill text="Active Campaign" />
+                        <span style={{ padding: "4px 8px", borderRadius: 999, fontSize: 12, border: theme.pillBorder, background: theme.pillBg, opacity: 0.95 }}>
+                          Max {maxClaims || 0}
+                        </span>
+                        <span style={{ padding: "4px 8px", borderRadius: 999, fontSize: 12, border: theme.pillBorder, background: theme.pillBg, opacity: 0.95 }}>
+                          {campaign.lock_days ? `${campaign.lock_days}d lock` : "No lock"}
+                        </span>
+                      </div>
+
+                      <h2 style={{ margin: 0, fontSize: 24 }}>{campaign.name}</h2>
+
+                      <div style={{ opacity: 0.84 }}>
+                        {campaign.description || "Community bonus campaign"}
+                      </div>
+
+                      <div
+                        style={{
+                          border: "1px solid rgba(255,255,255,.08)",
+                          borderRadius: 14,
+                          padding: 12,
+                          background: "rgba(8,12,20,.55)",
+                          opacity: 0.92,
+                          lineHeight: 1.6,
+                          minHeight: 48,
+                        }}
+                      >
+                        {campaign.details || "No additional campaign details yet."}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right", flex: "0 0 220px", minWidth: 220 }}>
+                      <div style={{ fontSize: 13, opacity: 0.7 }}>Reward Pool</div>
+                      <div style={{ fontSize: 32, fontWeight: 800 }}>
+                        {poolTokens.toLocaleString("en-US")} SKOPI
+                      </div>
+                      <div style={{ opacity: 0.82, marginTop: 4 }}>
+                        Estimated Value: {formatMoney(poolTokens)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    <StatBox
+                      label="Per User Reward"
+                      value={`${perUserCap.toLocaleString("en-US")} SKOPI`}
+                      subvalue={`${formatMoney(perUserCap)} est. value`}
+                    />
+                    <StatBox
+                      label="Claimed"
+                      value={`${claimedCount} / ${maxClaims}`}
+                      subvalue={`${spotsLeft} left`}
+                    />
+                    <StatBox
+                      label="Lock Period"
+                      value={campaign.lock_days ? `${campaign.lock_days} days` : "No lock"}
+                      subvalue=" "
+                    />
+                    <StatBox
+                      label="Start / End"
+                      value={`${formatDate(campaign.start_at)} → ${formatDate(campaign.end_at)}`}
+                      subvalue=" "
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8, fontSize: 13 }}>
+                      <div style={{ opacity: 0.78 }}>Campaign fill progress</div>
+                      <div style={{ fontWeight: 800 }}>{claimedCount} / {maxClaims} claimed</div>
+                    </div>
+                    <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${progressPct}%`,
+                          background: "linear-gradient(90deg, rgba(34,211,238,.9), rgba(212,175,55,.95))",
+                          borderRadius: 999,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid rgba(255,255,255,.08)",
+                      borderRadius: 14,
+                      padding: 12,
+                      background: "rgba(8,12,20,.55)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 6 }}>How to qualify</div>
+                    <div style={{ opacity: 0.84 }}>
+                      Join the campaign while spots remain open, complete the required action, and submit the requested wallet or proof details when the campaign flow is live.
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {videoSrc ? (
+                      <>
+                        <a
+                          href={`#${modalId}`}
+                          style={{
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "10px 14px",
+                            borderRadius: 12,
+                            border: "1px solid rgba(34,211,238,.35)",
+                            background: "rgba(34,211,238,.14)",
+                            color: "#9cecf7",
+                            fontWeight: 800,
+                          }}
+                        >
+                          Watch Video
+                        </a>
+
+                        <div id={modalId} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.72)", display: "none" }} className="campaign-video-modal">
+                          <a href="#" aria-label="Close video" style={{ position: "absolute", inset: 0, display: "block", cursor: "default" }} />
+                          <div
+                            style={{
+                              position: "relative",
+                              maxWidth: 900,
+                              width: "92%",
+                              margin: "5vh auto 0",
+                              borderRadius: 18,
+                              overflow: "hidden",
+                              border: "1px solid rgba(255,255,255,.12)",
+                              background: "#0b1220",
+                              boxShadow: "0 30px 80px rgba(0,0,0,.55)",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+                              <div style={{ fontWeight: 800 }}>{campaign.name}</div>
+                              <a href="#" style={{ textDecoration: "none", color: "#fff", opacity: 0.8, fontWeight: 800, padding: "4px 8px" }}>
+                                Close
+                              </a>
+                            </div>
+
+                            <div style={{ position: "relative", width: "100%", paddingTop: "56.25%" }}>
+                              <iframe
+                                src={videoSrc}
+                                title={`${campaign.name} video`}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  width: "100%",
+                                  height: "100%",
+                                  border: 0,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })
           )}
         </div>
+
+        {totalPages > 1 ? (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+            <a
+              href={safePage > 1 ? `/airdrop?page=${safePage - 1}` : "#"}
+              style={{
+                pointerEvents: safePage > 1 ? "auto" : "none",
+                opacity: safePage > 1 ? 1 : 0.45,
+                textDecoration: "none",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,.10)",
+                background: "rgba(10,14,24,.72)",
+                color: "inherit",
+                fontWeight: 800,
+              }}
+            >
+              Previous
+            </a>
+
+            <div style={{ alignSelf: "center", opacity: 0.8 }}>
+              Showing {startIndex + 1}-{Math.min(startIndex + PAGE_SIZE, totalCampaigns)} of {totalCampaigns}
+            </div>
+
+            <a
+              href={safePage < totalPages ? `/airdrop?page=${safePage + 1}` : "#"}
+              style={{
+                pointerEvents: safePage < totalPages ? "auto" : "none",
+                opacity: safePage < totalPages ? 1 : 0.45,
+                textDecoration: "none",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,.10)",
+                background: "rgba(10,14,24,.72)",
+                color: "inherit",
+                fontWeight: 800,
+              }}
+            >
+              Next
+            </a>
+          </div>
+        ) : null}
       </div>
+
+      <style>{`
+        .campaign-video-modal:target {
+          display: block !important;
+          z-index: 9999;
+        }
+      `}</style>
     </main>
   );
 }
