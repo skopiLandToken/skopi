@@ -1,66 +1,60 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-
-function isAdminEmail(email: string | null | undefined) {
-  const allow = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (!email) return false;
-  if (allow.length === 0) return false; // fail-closed
-  return allow.includes(email.toLowerCase());
-}
+import { NextRequest, NextResponse } from "next/server";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  const { pathname, searchParams, origin } = req.nextUrl;
 
-  // Redirect legacy receipt path /receipt/<uuid> -> /receipt?id=<uuid>
-  // We do this here because Next params are unreliable for /receipt/[id] in this build.
-  const path = req.nextUrl.pathname;
-  const m = path.match(/^\/receipt\/([0-9a-fA-F-]{36})$/);
-  if (m) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/receipt";
-    url.searchParams.set("id", m[1]);
-    return NextResponse.redirect(url);
+  if (pathname !== "/sale") {
+    return NextResponse.next();
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => req.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, options);
-          });
-        },
+  const refCode = searchParams.get("ref");
+  if (!refCode) {
+    return NextResponse.next();
+  }
+
+  const cookieName = `skopi_aff_session_${refCode}`;
+  let sessionKey = req.cookies.get(cookieName)?.value;
+
+  const res = NextResponse.next();
+
+  if (!sessionKey) {
+    sessionKey = crypto.randomUUID();
+    res.cookies.set(cookieName, sessionKey, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+  }
+
+  try {
+    const landingPath = `${pathname}${req.nextUrl.search}`;
+    const utmSource = searchParams.get("utm_source");
+    const utmCampaign = searchParams.get("utm_campaign");
+
+    await fetch(`${origin}/api/affiliate/click`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-skopi-internal-click": "1",
       },
-    }
-  );
-
-  // Refresh / read user (also keeps cookies fresh)
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
-
-  // Guard admin routes
-  if (req.nextUrl.pathname.startsWith("/admin")) {
-    if (!user?.email || !isAdminEmail(user.email)) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("next", req.nextUrl.pathname);
-      return NextResponse.redirect(url);
-    }
+      body: JSON.stringify({
+        refCode,
+        sessionKey,
+        landingPath,
+        utmSource,
+        utmCampaign,
+      }),
+      cache: "no-store",
+    });
+  } catch (err) {
+    console.error("middleware affiliate click logging failed", err);
   }
 
   return res;
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/sale"],
 };

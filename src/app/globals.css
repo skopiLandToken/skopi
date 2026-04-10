@@ -115,7 +115,7 @@ code, pre, kbd, samp {
   color: #001018;
   border-color: rgba(0,0,0,.10);
 }
-.btn-primary:hover { background: var(--accentHover); }
+.btn-primary:hover { background: var(--accentHover); color: #001018; }
 
 .btn-secondary {
   background: rgba(255,255,255,.05);
@@ -123,6 +123,17 @@ code, pre, kbd, samp {
   border-color: var(--border);
 }
 .btn-secondary:hover { background: rgba(255,255,255,.08); }
+
+.btn-brand {
+  background: linear-gradient(135deg, #d946ef 0%, #a21caf 100%);
+  color: #fff;
+  border-color: rgba(255,255,255,.12);
+  box-shadow: 0 10px 22px rgba(169, 31, 175, .28);
+}
+.btn-brand:hover {
+  background: linear-gradient(135deg, #e66bf3 0%, #b63ad0 100%);
+  color: #fff;
+}
 
 .btn-ghost {
   background: transparent;

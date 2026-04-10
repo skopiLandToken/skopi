@@ -14,7 +14,7 @@ export default async function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
           <Card title="Buy SKOpi" subtitle="Pick a tranche, choose an amount, pay with Phantom.">
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button href="/sale">Open Sale</Button>
+              <Button href="/sale">Buy SKOpi</Button>
               <Button href="/me/purchases" variant="secondary">My Purchases</Button>
             </div>
           </Card>

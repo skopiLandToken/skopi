@@ -55,3 +55,9 @@ local_scan_skopi.sh
 # local payout exports
 payout_batches/
 _scratch/
+
+# local junk
+next
+skopi-fresh@0.1.0
+supabase/.temp/
+src/app/sale/sale-client.tsx.bak

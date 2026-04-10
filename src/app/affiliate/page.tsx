@@ -1,4 +1,3 @@
-
 import { supabaseServer } from "@/lib/supabase-server";
 import { Container, Card, Button, Pill } from "../components/ui";
 import CopyButton from "../components/CopyButton";
@@ -7,14 +6,268 @@ export const dynamic = "force-dynamic";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.skopi.io";
 
-function atomicToUsdc(atomic: bigint) {
-  const s = atomic.toString().padStart(7, "0");
-  const whole = s.slice(0, -6);
-  const frac = s.slice(-6);
-  return `${Number(whole).toLocaleString("en-US")}.${frac}`;
+type PartnerRow = {
+  id: string;
+  user_id: string;
+  referral_code: string;
+  parent_ref_code: string | null;
+  auto_enrolled: boolean | null;
+  tax_status: string | null;
+  total_paid_usdc: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type CommissionRow = {
+  id: string;
+  created_at: string;
+  intent_id: string;
+  level: number;
+  ref_code: string;
+  usdc_atomic: string | number | bigint;
+  status: string;
+  payable_at: string | null;
+  paid_at: string | null;
+  paid_tx: string | null;
+};
+
+type PayoutRow = {
+  id: string;
+  partner_id: string;
+  amount_usdc: number;
+  status: string;
+  paid_at: string | null;
+  payout_reference: string | null;
+  created_at: string;
+};
+
+type ReferralRow = {
+  id: string;
+  partner_id: string;
+  user_id: string;
+  first_touch: Record<string, unknown> | null;
+  last_touch: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type PurchaseRow = {
+  id: string;
+  created_at: string;
+  confirmed_at: string | null;
+  amount_usdc_atomic: string | number | bigint;
+  tokens_skopi: number | null;
+  status: string;
+  ft_ref_code: string | null;
+  lt_ref_code: string | null;
+  tt_ref_code: string | null;
+};
+
+type ClickRow = {
+  id: string;
+  ref_code: string;
+  session_key: string;
+  landing_path: string | null;
+  referrer: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  created_at: string;
+};
+
+function toBigInt(value: string | number | bigint | null | undefined): bigint {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(Math.trunc(value));
+  if (typeof value === "string" && value.length > 0) return BigInt(value);
+  return BigInt(0);
 }
 
-export default async function AffiliatePage() {
+function atomicToUsdcNumber(atomic: string | number | bigint | null | undefined) {
+  return Number(toBigInt(atomic)) / 1_000_000;
+}
+
+function atomicToUsdcString(atomic: string | number | bigint | null | undefined) {
+  return formatMoney(atomicToUsdcNumber(atomic));
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value || 0);
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString();
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function getTouchLabel(touch: Record<string, unknown> | null | undefined) {
+  if (!touch) return "Unknown";
+
+  const candidates = [
+    touch["utm_source"],
+    touch["referrer"],
+    touch["landing_path"],
+    touch["utm_campaign"],
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+
+  return "Unknown";
+}
+
+function getClickLabel(click: ClickRow) {
+  return (
+    click.utm_source ||
+    click.utm_campaign ||
+    click.referrer ||
+    click.landing_path ||
+    "Unknown"
+  );
+}
+
+function tabHref(tab: string) {
+  return `/affiliate?tab=${encodeURIComponent(tab)}`;
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string;
+  value: string;
+  subtitle?: string;
+}) {
+  return (
+    <Card title={title} subtitle={subtitle}>
+      <div style={{ fontFamily: "monospace", fontSize: 24, fontWeight: 800 }}>
+        {value}
+      </div>
+    </Card>
+  );
+}
+
+function DataTable({
+  headers,
+  rows,
+}: {
+  headers: string[];
+  rows: Array<Array<string>>;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,.10)",
+        borderRadius: 16,
+        overflow: "hidden",
+        background: "rgba(255,255,255,.03)",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))`,
+          gap: 0,
+          background: "rgba(255,255,255,.04)",
+          borderBottom: "1px solid rgba(255,255,255,.08)",
+          fontWeight: 700,
+          fontSize: 13,
+        }}
+      >
+        {headers.map((header) => (
+          <div key={header} style={{ padding: 12 }}>
+            {header}
+          </div>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ padding: 14, opacity: 0.75 }}>No data yet.</div>
+      ) : (
+        rows.map((row, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))`,
+              gap: 0,
+              borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,.08)",
+            }}
+          >
+            {row.map((cell, cellIdx) => (
+              <div
+                key={`${idx}-${cellIdx}`}
+                style={{
+                  padding: 12,
+                  fontSize: 14,
+                  wordBreak: "break-word",
+                  opacity: 0.95,
+                }}
+              >
+                {cell}
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  href,
+  label,
+}: {
+  active: boolean;
+  href: string;
+  label: string;
+}) {
+  return (
+    <a
+      href={href}
+      style={{
+        textDecoration: "none",
+        padding: "10px 14px",
+        borderRadius: 12,
+        border: active ? "1px solid rgba(34,211,238,.45)" : "1px solid rgba(255,255,255,.10)",
+        background: active ? "rgba(34,211,238,.15)" : "rgba(255,255,255,.03)",
+        color: active ? "#8ae7f5" : "inherit",
+        fontWeight: 800,
+        fontSize: 14,
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
+export default async function AffiliatePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+}) {
+  const resolvedSearchParams =
+    searchParams && typeof (searchParams as Promise<Record<string, string | string[] | undefined>>).then === "function"
+      ? await (searchParams as Promise<Record<string, string | string[] | undefined>>)
+      : (searchParams as Record<string, string | string[] | undefined>) || {};
+
+  const rawTab = resolvedSearchParams?.tab;
+  const tab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
+  const activeTab = ["overview", "traffic", "conversions", "commissions", "payouts"].includes(tab || "")
+    ? (tab as "overview" | "traffic" | "conversions" | "commissions" | "payouts")
+    : "overview";
+
   const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   const user = data?.user;
@@ -32,111 +285,358 @@ export default async function AffiliatePage() {
     );
   }
 
-  const { data: affiliate, error: affErr } = await supabase
-    .from("affiliates")
-    .select("ref_code,created_at")
+  const { data: partner, error: partnerErr } = await supabase
+    .from("marketing_partners")
+    .select("id,user_id,referral_code,parent_ref_code,auto_enrolled,tax_status,total_paid_usdc,created_at,updated_at")
     .eq("user_id", user.id)
-    .single();
+    .single<PartnerRow>();
 
-  if (affErr || !affiliate?.ref_code) {
+  if (partnerErr || !partner?.referral_code) {
     return (
       <Container>
         <Card title="Affiliate" subtitle="Could not load your affiliate profile.">
-          <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(affErr, null, 2)}</pre>
+          <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(partnerErr, null, 2)}</pre>
         </Card>
       </Container>
     );
   }
 
-  const refCode = affiliate.ref_code as string;
+  const refCode = partner.referral_code;
   const refLink = `${APP_URL}/sale?ref=${encodeURIComponent(refCode)}`;
 
-  const { data: rows, error: rowsErr } = await supabase
-    .from("affiliate_commissions")
-    .select("id,created_at,intent_id,level,usdc_atomic,status,paid_at,paid_tx")
-    .eq("ref_code", refCode)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const [commissionsRes, payoutsRes, referralsRes, purchasesRes, clicksRes] = await Promise.all([
+    supabase
+      .from("affiliate_commissions")
+      .select("id,created_at,intent_id,level,ref_code,usdc_atomic,status,payable_at,paid_at,paid_tx")
+      .eq("ref_code", refCode)
+      .order("created_at", { ascending: false })
+      .limit(100),
 
-  const pending = (rows ?? []).filter((r: any) => r.status === "pending");
-  const paid = (rows ?? []).filter((r: any) => r.status === "paid");
+    supabase
+      .from("marketing_partner_payouts")
+      .select("id,partner_id,amount_usdc,status,paid_at,payout_reference,created_at")
+      .eq("partner_id", partner.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
 
-  const pendingSum = pending.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), BigInt(0));
-  const paidSum = paid.reduce((s: bigint, r: any) => s + BigInt(r.usdc_atomic ?? 0), BigInt(0));
+    supabase
+      .from("marketing_partner_referrals")
+      .select("id,partner_id,user_id,first_touch,last_touch,created_at")
+      .eq("partner_id", partner.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
+
+    supabase
+      .from("purchase_intents")
+      .select("id,created_at,confirmed_at,amount_usdc_atomic,tokens_skopi,status,ft_ref_code,lt_ref_code,tt_ref_code")
+      .eq("status", "confirmed")
+      .or(`ft_ref_code.eq.${refCode},lt_ref_code.eq.${refCode},tt_ref_code.eq.${refCode}`)
+      .order("confirmed_at", { ascending: false })
+      .limit(100),
+
+    supabase
+      .from("affiliate_link_clicks")
+      .select("id,ref_code,session_key,landing_path,referrer,utm_source,utm_medium,utm_campaign,created_at")
+      .eq("ref_code", refCode)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+
+  const commissions = (commissionsRes.data ?? []) as CommissionRow[];
+  const payouts = (payoutsRes.data ?? []) as PayoutRow[];
+  const referrals = (referralsRes.data ?? []) as ReferralRow[];
+  const purchases = (purchasesRes.data ?? []) as PurchaseRow[];
+  const clicks = (clicksRes.data ?? []) as ClickRow[];
+
+  const pendingRows = commissions.filter((r) => r.status === "pending");
+  const paidRows = commissions.filter((r) => r.status === "paid");
+
+  const pendingSumAtomic = pendingRows.reduce((sum, row) => sum + toBigInt(row.usdc_atomic), BigInt(0));
+  const paidSumAtomic = paidRows.reduce((sum, row) => sum + toBigInt(row.usdc_atomic), BigInt(0));
+
+  const revenueInfluenced = purchases.reduce((sum, row) => sum + atomicToUsdcNumber(row.amount_usdc_atomic), 0);
+  const totalPayouts = payouts.reduce((sum, row) => sum + Number(row.amount_usdc || 0), 0);
+
+  const uniqueClicks = new Set(clicks.map((r) => r.session_key)).size;
+  const conversionRate = referrals.length > 0 ? (purchases.length / referrals.length) * 100 : 0;
+  const clickToReferralRate = uniqueClicks > 0 ? (referrals.length / uniqueClicks) * 100 : 0;
+  const clickToPurchaseRate = uniqueClicks > 0 ? (purchases.length / uniqueClicks) * 100 : 0;
+
+  const levelStats = [1, 2, 3].map((level) => {
+    const rows = commissions.filter((r) => r.level === level);
+    const pending = rows.filter((r) => r.status === "pending");
+    const paid = rows.filter((r) => r.status === "paid");
+
+    const totalAtomic = rows.reduce((sum, row) => sum + toBigInt(row.usdc_atomic), BigInt(0));
+    const pendingAtomic = pending.reduce((sum, row) => sum + toBigInt(row.usdc_atomic), BigInt(0));
+    const paidAtomic = paid.reduce((sum, row) => sum + toBigInt(row.usdc_atomic), BigInt(0));
+
+    return {
+      level,
+      rows: rows.length,
+      totalAtomic,
+      pendingAtomic,
+      paidAtomic,
+      pendingCount: pending.length,
+      paidCount: paid.length,
+    };
+  });
+
+  const referralSourceCounts = new Map<string, number>();
+  for (const row of referrals) {
+    const label = getTouchLabel(row.last_touch) || getTouchLabel(row.first_touch);
+    referralSourceCounts.set(label, (referralSourceCounts.get(label) || 0) + 1);
+  }
+  const referralSourceBreakdown = [...referralSourceCounts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const clickSourceCounts = new Map<string, number>();
+  for (const row of clicks) {
+    const label = getClickLabel(row);
+    clickSourceCounts.set(label, (clickSourceCounts.get(label) || 0) + 1);
+  }
+  const clickSourceBreakdown = [...clickSourceCounts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  const recentPurchasesRows = purchases.slice(0, 10).map((row) => [
+    row.id.slice(0, 8),
+    formatMoney(atomicToUsdcNumber(row.amount_usdc_atomic)),
+    row.tokens_skopi ? row.tokens_skopi.toLocaleString("en-US") : "—",
+    formatDateTime(row.confirmed_at),
+  ]);
+
+  const recentCommissionsRows = commissions.slice(0, 12).map((row) => [
+    `L${row.level}`,
+    atomicToUsdcString(row.usdc_atomic),
+    row.status,
+    formatDateTime(row.created_at),
+    row.paid_at ? formatDateTime(row.paid_at) : "—",
+  ]);
+
+  const payoutRows = payouts.slice(0, 12).map((row) => [
+    formatMoney(Number(row.amount_usdc || 0)),
+    row.status,
+    row.payout_reference || "—",
+    row.paid_at ? formatDateTime(row.paid_at) : "—",
+    formatDateTime(row.created_at),
+  ]);
+
+  const recentClickRows = clicks.slice(0, 12).map((row) => [
+    row.session_key.slice(0, 8),
+    row.utm_source || "—",
+    row.utm_campaign || "—",
+    row.landing_path || "—",
+    formatDateTime(row.created_at),
+  ]);
 
   return (
     <Container>
       <div style={{ display: "grid", gap: 14 }}>
         <div>
           <h1 style={{ margin: 0 }}>Affiliate Dashboard</h1>
-          <div style={{ marginTop: 8, opacity: 0.85 }}>
-            Share your link. Earnings update when purchases confirm.
-          </div>
-          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <Pill text={`ref: ${refCode}`} />
-            <Button href="/sale" variant="secondary">Open Sale</Button>
-            <Button href="/me/purchases" variant="secondary">My Purchases</Button>
+          <div style={{ opacity: 0.72, marginTop: 6 }}>
+            Track your link traffic, conversions, commissions, and payouts.
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-          <Card title="Your referral link" subtitle="Copy + share this.">
-            <div style={{ fontFamily: "monospace", wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 12 }}>
+        <section
+          style={{
+            border: "1px solid rgba(255,255,255,.10)",
+            borderRadius: 20,
+            padding: 18,
+            background: "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02))",
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Pill text="Affiliate" />
+                <Pill text={refCode} />
+                {partner.auto_enrolled ? <Pill text="Auto-enrolled" /> : null}
+              </div>
+              <div style={{ fontSize: 14, opacity: 0.76 }}>
+                Your referral link
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button href="/sale" variant="secondary">Go to Sale</Button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,.10)",
+              borderRadius: 14,
+              padding: 12,
+              background: "rgba(255,255,255,.04)",
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontFamily: "monospace", fontSize: 14, wordBreak: "break-all" }}>
               {refLink}
             </div>
-            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <CopyButton value={refLink} label="Copy link" />
-              <Button href={refLink}>Open link</Button>
-              <Button href="/sale" variant="ghost">Back to Sale</Button>
-            </div>
-          </Card>
-
-          <Card title="Pending (USDC)" subtitle={`${pending.length} rows`}>
-            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 800 }}>
-              {atomicToUsdc(pendingSum)}
-            </div>
-          </Card>
-
-          <Card title="Paid (USDC)" subtitle={`${paid.length} rows`}>
-            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 800 }}>
-              {atomicToUsdc(paidSum)}
-            </div>
-          </Card>
-        </div>
-
-        <Card title="Recent commissions" subtitle="Latest 50 rows">
-          {rowsErr ? (
-            <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(rowsErr, null, 2)}</pre>
-          ) : null}
-
-          <div style={{ marginTop: 10, border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "140px 90px 120px 1fr 160px", padding: "10px 12px", background: "#f6f6f6", fontWeight: 800, fontSize: 13 }}>
-              <div>Date</div>
-              <div>Level</div>
-              <div>Status</div>
-              <div>Intent</div>
-              <div>USDC</div>
-            </div>
-
-            {(rows ?? []).map((r: any) => (
-              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "140px 90px 120px 1fr 160px", padding: "10px 12px", borderTop: "1px solid #eee", fontSize: 13, alignItems: "center" }}>
-                <div>{new Date(r.created_at).toLocaleDateString()}</div>
-                <div>{r.level}</div>
-                <div>{r.status}{r.paid_at ? " ✅" : ""}</div>
-                <div style={{ fontFamily: "monospace" }}>
-                  <a href={`/receipt/${r.intent_id}`} style={{ textDecoration: "none" }}>
-                    {String(r.intent_id).slice(0, 8)}…
-                  </a>
-                </div>
-                <div style={{ fontFamily: "monospace" }}>{atomicToUsdc(BigInt(r.usdc_atomic ?? 0))}</div>
-              </div>
-            ))}
-
-            {(rows ?? []).length === 0 ? (
-              <div style={{ padding: 12, opacity: 0.75 }}>No commissions yet.</div>
-            ) : null}
+            <CopyButton value={refLink} label="Copy link" />
           </div>
-        </Card>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <TabButton active={activeTab === "overview"} href={tabHref("overview")} label="Overview" />
+            <TabButton active={activeTab === "traffic"} href={tabHref("traffic")} label="Traffic" />
+            <TabButton active={activeTab === "conversions"} href={tabHref("conversions")} label="Conversions" />
+            <TabButton active={activeTab === "commissions"} href={tabHref("commissions")} label="Commissions" />
+            <TabButton active={activeTab === "payouts"} href={tabHref("payouts")} label="Payouts" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <StatCard title="Referred Users" value={String(referrals.length)} />
+            <StatCard title="Confirmed Purchases" value={String(purchases.length)} />
+            <StatCard title="Revenue Influenced" value={formatMoney(revenueInfluenced)} />
+            <StatCard title="Unique Clicks" value={String(uniqueClicks)} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            {levelStats.map((item) => (
+              <Card
+                key={item.level}
+                title={`Level ${item.level} Earnings`}
+                subtitle={`Pays ${item.level === 1 ? "8%" : item.level === 2 ? "3%" : "1%"} • ${item.rows} commission row${item.rows === 1 ? "" : "s"}`}
+              >
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 24, fontWeight: 800 }}>
+                    {formatMoney(atomicToUsdcNumber(item.totalAtomic))}
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.78 }}>
+                    Pending: {formatMoney(atomicToUsdcNumber(item.pendingAtomic))} • Paid: {formatMoney(atomicToUsdcNumber(item.paidAtomic))}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {activeTab === "overview" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <StatCard title="Pending Commissions" value={formatMoney(atomicToUsdcNumber(pendingSumAtomic))} subtitle={`${pendingRows.length} row(s)`} />
+              <StatCard title="Paid Commissions" value={formatMoney(atomicToUsdcNumber(paidSumAtomic))} subtitle={`${paidRows.length} row(s)`} />
+              <StatCard title="Total Payouts" value={formatMoney(totalPayouts)} subtitle={`${payouts.length} payout row(s)`} />
+              <StatCard title="Conversion Rate" value={`${conversionRate.toFixed(1)}%`} subtitle="Purchases / referred users" />
+            </div>
+
+            <Card title="Recent Confirmed Purchases" subtitle="Latest confirmed purchases influenced by your link">
+              <DataTable
+                headers={["Intent", "USDC", "SKOpi", "Confirmed"]}
+                rows={recentPurchasesRows}
+              />
+            </Card>
+
+            <Card title="Recent Commissions" subtitle="Latest commission activity across all levels">
+              <DataTable
+                headers={["Level", "Amount", "Status", "Created", "Paid"]}
+                rows={recentCommissionsRows}
+              />
+            </Card>
+          </div>
+        ) : null}
+
+        {activeTab === "traffic" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <StatCard title="Total Click Rows" value={String(clicks.length)} />
+              <StatCard title="Unique Click Sessions" value={String(uniqueClicks)} />
+              <StatCard title="Click → Referral" value={`${clickToReferralRate.toFixed(1)}%`} />
+              <StatCard title="Click → Purchase" value={`${clickToPurchaseRate.toFixed(1)}%`} />
+            </div>
+
+            <Card title="Traffic Sources" subtitle="Top click sources seen on your referral traffic">
+              <DataTable
+                headers={["Source", "Clicks"]}
+                rows={clickSourceBreakdown.map((row) => [row.label, String(row.count)])}
+              />
+            </Card>
+
+            <Card title="Recent Clicks" subtitle="Latest logged visits to your referral link">
+              <DataTable
+                headers={["Session", "UTM Source", "UTM Campaign", "Landing Path", "Created"]}
+                rows={recentClickRows}
+              />
+            </Card>
+          </div>
+        ) : null}
+
+        {activeTab === "conversions" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <StatCard title="Referred Users" value={String(referrals.length)} />
+              <StatCard title="Confirmed Purchases" value={String(purchases.length)} />
+              <StatCard title="Revenue Influenced" value={formatMoney(revenueInfluenced)} />
+              <StatCard title="Referral → Purchase" value={`${conversionRate.toFixed(1)}%`} />
+            </div>
+
+            <Card title="Referral Sources" subtitle="Most common last-touch / first-touch source labels">
+              <DataTable
+                headers={["Source", "Referrals"]}
+                rows={referralSourceBreakdown.map((row) => [row.label, String(row.count)])}
+              />
+            </Card>
+
+            <Card title="Recent Confirmed Purchases" subtitle="Latest influenced conversions">
+              <DataTable
+                headers={["Intent", "USDC", "SKOpi", "Confirmed"]}
+                rows={recentPurchasesRows}
+              />
+            </Card>
+          </div>
+        ) : null}
+
+        {activeTab === "commissions" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              {levelStats.map((item) => (
+                <StatCard
+                  key={`commissions-level-${item.level}`}
+                  title={`Level ${item.level}`}
+                  value={formatMoney(atomicToUsdcNumber(item.totalAtomic))}
+                  subtitle={`${item.level === 1 ? "8%" : item.level === 2 ? "3%" : "1%"} payout • Pending ${formatMoney(atomicToUsdcNumber(item.pendingAtomic))} • Paid ${formatMoney(atomicToUsdcNumber(item.paidAtomic))}`}
+                />
+              ))}
+            </div>
+
+            <Card title="Commission History" subtitle="All recent commission rows">
+              <DataTable
+                headers={["Level", "Amount", "Status", "Created", "Paid"]}
+                rows={recentCommissionsRows}
+              />
+            </Card>
+          </div>
+        ) : null}
+
+        {activeTab === "payouts" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <StatCard title="Total Payouts" value={formatMoney(totalPayouts)} />
+              <StatCard title="Payout Rows" value={String(payouts.length)} />
+              <StatCard title="Partner Paid Total" value={formatMoney(Number(partner.total_paid_usdc || 0))} />
+              <StatCard title="Tax Status" value={partner.tax_status || "—"} />
+            </div>
+
+            <Card title="Payout History" subtitle="Latest payout records">
+              <DataTable
+                headers={["Amount", "Status", "Reference", "Paid", "Created"]}
+                rows={payoutRows}
+              />
+            </Card>
+          </div>
+        ) : null}
       </div>
     </Container>
   );
