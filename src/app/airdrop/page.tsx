@@ -1,9 +1,11 @@
 import { supabaseServer } from "@/lib/supabase-server";
 import { Pill } from "../components/ui";
+import CampaignVideoModal from "../components/campaign-video-modal";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
+const DEFAULT_CAMPAIGN_VIDEO = "https://www.youtube.com/embed/dQw4w9WgXcQ";
 
 type CampaignRow = {
   id: string;
@@ -156,8 +158,6 @@ export default async function AirdropPage({
   const startIndex = (safePage - 1) * PAGE_SIZE;
   const pagedCampaigns = activeCampaigns.slice(startIndex, startIndex + PAGE_SIZE);
 
-  const hasActive = activeCampaigns.length > 0;
-
   return (
     <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto", fontFamily: "ui-sans-serif, system-ui" }}>
       <div
@@ -165,7 +165,7 @@ export default async function AirdropPage({
           border: "1px solid rgba(255,255,255,.10)",
           borderRadius: 20,
           padding: 24,
-          background: "linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))",
+          background: "rgba(10, 16, 28, 0.96)",
           boxShadow: "0 10px 28px rgba(0,0,0,.30)",
         }}
       >
@@ -201,50 +201,32 @@ export default async function AirdropPage({
             marginBottom: 24,
           }}
         >
-          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(8,12,20,.55)" }}>
             <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Status</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{hasActive ? "Active" : "Not Live Yet"}</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{activeCampaigns.length > 0 ? "Active" : "Not Live Yet"}</div>
           </section>
 
-          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(8,12,20,.55)" }}>
             <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Campaigns</div>
             <div style={{ fontSize: 24, fontWeight: 800 }}>{activeCampaigns.length} Active</div>
           </section>
 
-          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(255,255,255,.02)" }}>
+          <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 18, background: "rgba(8,12,20,.55)" }}>
             <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Page</div>
             <div style={{ fontSize: 24, fontWeight: 800 }}>{safePage} / {totalPages}</div>
           </section>
         </div>
 
-        <div
-          style={{
-            border: "1px solid rgba(34,211,238,.20)",
-            borderRadius: 16,
-            padding: 18,
-            background: "rgba(34,211,238,.06)",
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>What this page is for</div>
-          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7, opacity: 0.9 }}>
-            <li>approved community bonus campaigns</li>
-            <li>referral and promo reward tasks</li>
-            <li>verified wallet submissions</li>
-            <li>future hourly / daily reward tracking</li>
-          </ul>
-        </div>
-
         <div style={{ display: "grid", gap: 16 }}>
           {pagedCampaigns.length === 0 ? (
-            <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 18, padding: 18, background: "rgba(255,255,255,.03)" }}>
+            <section style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 18, padding: 18, background: "rgba(10,14,24,.72)" }}>
               <div style={{ fontWeight: 800, marginBottom: 8 }}>No active campaigns yet</div>
               <div style={{ opacity: 0.8 }}>As soon as a campaign is active, it will appear here.</div>
             </section>
           ) : (
             pagedCampaigns.map((campaign, idx) => {
               const modalId = `campaign-video-${startIndex + idx}`;
-              const videoSrc = embedUrl(campaign.video_url);
+              const videoSrc = embedUrl(campaign.video_url) || DEFAULT_CAMPAIGN_VIDEO;
               const stats = statsMap.get(campaign.id);
               const theme = getTheme(startIndex + idx);
 
@@ -331,12 +313,10 @@ export default async function AirdropPage({
                     <StatBox
                       label="Lock Period"
                       value={campaign.lock_days ? `${campaign.lock_days} days` : "No lock"}
-                      subvalue=" "
                     />
                     <StatBox
                       label="Start / End"
                       value={`${formatDate(campaign.start_at)} → ${formatDate(campaign.end_at)}`}
-                      subvalue=" "
                     />
                   </div>
 
@@ -372,67 +352,10 @@ export default async function AirdropPage({
                   </div>
 
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    {videoSrc ? (
-                      <>
-                        <a
-                          href={`#${modalId}`}
-                          style={{
-                            textDecoration: "none",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "10px 14px",
-                            borderRadius: 12,
-                            border: "1px solid rgba(34,211,238,.35)",
-                            background: "rgba(34,211,238,.14)",
-                            color: "#9cecf7",
-                            fontWeight: 800,
-                          }}
-                        >
-                          Watch Video
-                        </a>
-
-                        <div id={modalId} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.72)", display: "none" }} className="campaign-video-modal">
-                          <a href="#" aria-label="Close video" style={{ position: "absolute", inset: 0, display: "block", cursor: "default" }} />
-                          <div
-                            style={{
-                              position: "relative",
-                              maxWidth: 900,
-                              width: "92%",
-                              margin: "5vh auto 0",
-                              borderRadius: 18,
-                              overflow: "hidden",
-                              border: "1px solid rgba(255,255,255,.12)",
-                              background: "#0b1220",
-                              boxShadow: "0 30px 80px rgba(0,0,0,.55)",
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-                              <div style={{ fontWeight: 800 }}>{campaign.name}</div>
-                              <a href="#" style={{ textDecoration: "none", color: "#fff", opacity: 0.8, fontWeight: 800, padding: "4px 8px" }}>
-                                Close
-                              </a>
-                            </div>
-
-                            <div style={{ position: "relative", width: "100%", paddingTop: "56.25%" }}>
-                              <iframe
-                                src={videoSrc}
-                                title={`${campaign.name} video`}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                                style={{
-                                  position: "absolute",
-                                  inset: 0,
-                                  width: "100%",
-                                  height: "100%",
-                                  border: 0,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    ) : null}
+                    <CampaignVideoModal
+                      title={campaign.name}
+                      videoSrc={videoSrc}
+                    />
                   </div>
                 </section>
               );
@@ -451,7 +374,7 @@ export default async function AirdropPage({
                 padding: "10px 14px",
                 borderRadius: 12,
                 border: "1px solid rgba(255,255,255,.10)",
-                background: "rgba(10,14,24,.72)",
+                background: "rgba(255,255,255,.03)",
                 color: "inherit",
                 fontWeight: 800,
               }}
@@ -472,7 +395,7 @@ export default async function AirdropPage({
                 padding: "10px 14px",
                 borderRadius: 12,
                 border: "1px solid rgba(255,255,255,.10)",
-                background: "rgba(10,14,24,.72)",
+                background: "rgba(255,255,255,.03)",
                 color: "inherit",
                 fontWeight: 800,
               }}
@@ -482,13 +405,6 @@ export default async function AirdropPage({
           </div>
         ) : null}
       </div>
-
-      <style>{`
-        .campaign-video-modal:target {
-          display: block !important;
-          z-index: 9999;
-        }
-      `}</style>
     </main>
   );
 }

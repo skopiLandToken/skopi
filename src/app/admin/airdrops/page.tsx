@@ -1,742 +1,553 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 type Campaign = {
   id: string;
   name: string;
   status: string;
-  lock_days: number;
+  platform?: string | null;
+  proof_type?: string | null;
+  verification_method?: string | null;
   pool_tokens?: string | null;
-  distributed_tokens?: string | null;
   per_user_cap?: string | null;
-  created_at: string;
-};
-
-type Task = {
-  id: string;
-  campaign_id: string;
-  code: string;
-  title: string;
-  description?: string | null;
-  bounty_tokens: string;
-  requires_manual: boolean;
-  max_per_user?: number | null;
-  allowed_domains?: string[] | null;
-  requires_https?: boolean;
-  min_evidence_length?: number;
-  active: boolean;
-};
-
-type AuditLog = {
-  id: string;
-  action: string;
-  actor?: string | null;
-  campaign_id?: string | null;
-  task_id?: string | null;
-  submission_id?: string | null;
-  allocation_id?: string | null;
-  metadata?: Record<string, unknown> | null;
-  created_at: string;
+  distributed_tokens?: string | null;
+  max_claims?: number | null;
 };
 
 type Submission = {
   id: string;
   campaign_id: string;
-  task_id: string;
+  task_id?: string | null;
   user_id?: string | null;
-  wallet_address: string;
+  wallet_address?: string | null;
   handle?: string | null;
-  evidence_url: string;
+  evidence_url?: string | null;
+  proof_url?: string | null;
   state: string;
   submitted_at: string;
+  reviewed_at?: string | null;
+  reviewer?: string | null;
   notes?: string | null;
 };
 
-function stateBadgeStyle(state: string) {
-  if (state === "pending_review") return { background: "#fff7e6", color: "#8a5a00" };
-  if (state === "verified_auto" || state === "verified_manual") return { background: "#eafbea", color: "#1f6b2a" };
-  if (state === "revoked") return { background: "#fff2f2", color: "#8a1f1f" };
-  return { background: "#f2f2f2", color: "#444" };
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+function badgeStyle(state: string): React.CSSProperties {
+  if (state === "pending_review") {
+    return {
+      background: "rgba(245, 158, 11, 0.16)",
+      color: "#fbbf24",
+      border: "1px solid rgba(245, 158, 11, 0.28)",
+    };
+  }
+  if (state === "verified_manual" || state === "verified_auto") {
+    return {
+      background: "rgba(34, 197, 94, 0.16)",
+      color: "#86efac",
+      border: "1px solid rgba(34, 197, 94, 0.28)",
+    };
+  }
+  if (state === "revoked") {
+    return {
+      background: "rgba(239, 68, 68, 0.14)",
+      color: "#fca5a5",
+      border: "1px solid rgba(239, 68, 68, 0.24)",
+    };
+  }
+  return {
+    background: "rgba(255,255,255,.06)",
+    color: "#e5e7eb",
+    border: "1px solid rgba(255,255,255,.10)",
+  };
+}
+
+function cardStyle(): React.CSSProperties {
+  return {
+    background: "rgba(255,255,255,.04)",
+    border: "1px solid rgba(255,255,255,.10)",
+    borderRadius: 16,
+    padding: 16,
+    boxShadow: "0 10px 30px rgba(0,0,0,.22)",
+  };
+}
+
+function buttonStyle(kind: "primary" | "ghost" | "danger" = "ghost"): React.CSSProperties {
+  if (kind === "primary") {
+    return {
+      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+      color: "#08110b",
+      border: "none",
+      borderRadius: 10,
+      padding: "10px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    };
+  }
+  if (kind === "danger") {
+    return {
+      background: "rgba(239,68,68,.16)",
+      color: "#fecaca",
+      border: "1px solid rgba(239,68,68,.28)",
+      borderRadius: 10,
+      padding: "10px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    };
+  }
+  return {
+    background: "rgba(255,255,255,.04)",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 10,
+    padding: "10px 14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  };
 }
 
 export default function AdminAirdropsPage() {
-  const [token, setToken] = useState("");
-  const [rows, setRows] = useState<Campaign[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [accessToken, setAccessToken] = useState("");
+  const [email, setEmail] = useState("");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [stateFilter, setStateFilter] = useState<"pending_review" | "verified_manual" | "verified_auto" | "revoked" | "all">("pending_review");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [reviewer, setReviewer] = useState("admin");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
-  const [submissionStateFilter, setSubmissionStateFilter] = useState<"pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all">("pending_review");
-  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
-  const [reconcileReport, setReconcileReport] = useState<Array<{ campaign_id: string; campaign_name: string; drift_tokens: number; remaining_tokens: number | null; ok: boolean }>>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [auditActionFilter, setAuditActionFilter] = useState("");
-  const [auditActorFilter, setAuditActorFilter] = useState("");
-  const [auditFrom, setAuditFrom] = useState("");
-  const [auditTo, setAuditTo] = useState("");
-  const [auditNextBefore, setAuditNextBefore] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const [name, setName] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [lockDays, setLockDays] = useState("90");
-  const [poolTokens, setPoolTokens] = useState("");
-  const [capPerUser, setCapPerUser] = useState("");
-  const [description, setDescription] = useState("");
+  const selectedCampaign = useMemo(
+    () => campaigns.find((c) => c.id === selectedCampaignId) || null,
+    [campaigns, selectedCampaignId]
+  );
 
-  const [taskCode, setTaskCode] = useState("");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDesc, setTaskDesc] = useState("");
-  const [taskBounty, setTaskBounty] = useState("0");
-  const [taskType, setTaskType] = useState<"auto" | "manual">("auto");
-  const [taskMaxPerUser, setTaskMaxPerUser] = useState("");
-  const [taskAllowedDomains, setTaskAllowedDomains] = useState("");
-  const [taskRequiresHttps, setTaskRequiresHttps] = useState(true);
-  const [taskMinEvidenceLen, setTaskMinEvidenceLen] = useState("10");
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-
-  const submissionCounts = useMemo(() => {
-    const counts: Record<string, number> = {
+  const counts = useMemo(() => {
+    const out: Record<string, number> = {
       all: submissions.length,
       pending_review: 0,
-      verified_auto: 0,
       verified_manual: 0,
+      verified_auto: 0,
       revoked: 0,
     };
-    for (const s of submissions) {
-      counts[s.state] = (counts[s.state] || 0) + 1;
-    }
-    return counts;
+    for (const s of submissions) out[s.state] = (out[s.state] || 0) + 1;
+    return out;
   }, [submissions]);
 
-  async function loadCampaigns(useToken?: string) {
-    const t = (useToken ?? token).trim();
-    if (!t) return setError("Enter admin token first");
-    setLoading(true); setError(null);
+  async function getSessionToken(): Promise<string> {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.access_token) {
+      throw new Error("You must be logged in with an admin account");
+    }
+    const token = data.session.access_token;
+    const userEmail = data.session.user?.email || "";
+    setAccessToken(token);
+    setEmail(userEmail);
+    if (userEmail && reviewer === "admin") {
+      setReviewer(userEmail);
+    }
+    return token;
+  }
+
+  async function authHeaders() {
+    const token = accessToken || await getSessionToken();
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  async function loadCampaigns() {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch("/api/admin/airdrop/campaigns", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+      const headers = await authHeaders();
+      const res = await fetch("/api/admin/airdrop/campaigns", {
+        headers,
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load campaigns");
-      setRows(data.campaigns || []);
-      localStorage.setItem("skopi_admin_token", t);
-      if (!selectedCampaignId && data.campaigns?.length) setSelectedCampaignId(data.campaigns[0].id);
+
+      const rows = Array.isArray(data.campaigns) ? data.campaigns : [];
+      setCampaigns(rows);
+
+      if (rows.length && !selectedCampaignId) {
+        const pendingFirst =
+          rows.find((x: Campaign) => x.name === "Like Our Twitter Page")?.id ||
+          rows[0].id;
+        setSelectedCampaignId(pendingFirst);
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load campaigns");
-    } finally { setLoading(false); }
-  }
-
-  async function loadTasks(campaignId?: string, useToken?: string) {
-    const t = (useToken ?? token).trim();
-    const cid = campaignId || selectedCampaignId;
-    if (!t || !cid) return;
-    const res = await fetch(`/api/admin/airdrop/tasks?campaign_id=${cid}`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
-    const data = await res.json();
-    if (res.ok && data.ok) setTasks(data.tasks || []);
-  }
-
-  async function loadSubmissions(campaignId?: string, useToken?: string, stateFilter?: string) {
-    const t = (useToken ?? token).trim();
-    const cid = campaignId || selectedCampaignId;
-    if (!t) return;
-    const q = new URLSearchParams();
-    q.set("state", stateFilter || submissionStateFilter);
-    if (cid) q.set("campaign_id", cid);
-    const res = await fetch(`/api/admin/airdrop/submissions?${q.toString()}`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      setSubmissions(data.submissions || []);
-      setSelectedSubmissionIds([]);
-    }
-  }
-
-  async function createCampaign() {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-    if (!name.trim()) return setError("Campaign name required");
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch("/api/admin/airdrop/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({
-          name: name.trim(), description: description || null, status,
-          lock_days: Number(lockDays || 90), pool_tokens: poolTokens || null, per_user_cap: capPerUser || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create campaign");
-      setName(""); setStatus("draft"); setLockDays("90"); setPoolTokens(""); setCapPerUser(""); setDescription("");
-      await loadCampaigns(t);
-    } catch (e: any) { setError(e?.message || "Failed to create campaign"); }
-    finally { setLoading(false); }
-  }
-
-  function startEditTask(task: Task) {
-    setEditingTaskId(task.id);
-    setTaskCode(task.code || "");
-    setTaskTitle(task.title || "");
-    setTaskDesc(task.description || "");
-    setTaskBounty(String(task.bounty_tokens || "0"));
-    setTaskType(task.requires_manual ? "manual" : "auto");
-    setTaskMaxPerUser(task.max_per_user != null ? String(task.max_per_user) : "");
-    setTaskAllowedDomains(task.allowed_domains?.join(",") || "");
-    setTaskRequiresHttps(task.requires_https ?? true);
-    setTaskMinEvidenceLen(String(task.min_evidence_length ?? 10));
-  }
-
-  function clearTaskForm() {
-    setEditingTaskId(null);
-    setTaskCode(""); setTaskTitle(""); setTaskDesc(""); setTaskBounty("0"); setTaskType("auto"); setTaskMaxPerUser("");
-    setTaskAllowedDomains(""); setTaskRequiresHttps(true); setTaskMinEvidenceLen("10");
-  }
-
-  async function createTask() {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-    if (!selectedCampaignId) return setError("Select campaign first");
-    if (!taskCode.trim() || !taskTitle.trim()) return setError("Task code/title required");
-
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch("/api/admin/airdrop/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({
-          campaign_id: selectedCampaignId,
-          code: taskCode.trim().toLowerCase(),
-          title: taskTitle.trim(),
-          description: taskDesc || null,
-          bounty_tokens: Number(taskBounty || 0),
-          requires_manual: taskType === "manual",
-          max_per_user: taskMaxPerUser ? Number(taskMaxPerUser) : null,
-          allowed_domains: taskAllowedDomains
-            ? taskAllowedDomains.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)
-            : null,
-          requires_https: taskRequiresHttps,
-          min_evidence_length: Number(taskMinEvidenceLen || 10),
-          active: true,
-          sort_order: 0,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create task");
-      clearTaskForm();
-      await loadTasks(selectedCampaignId, t);
-    } catch (e: any) { setError(e?.message || "Failed to create task"); }
-    finally { setLoading(false); }
-  }
-
-  async function updateTask() {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-    if (!editingTaskId) return setError("No task selected for editing");
-
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch("/api/admin/airdrop/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({
-          task_id: editingTaskId,
-          code: taskCode.trim().toLowerCase(),
-          title: taskTitle.trim(),
-          description: taskDesc || null,
-          bounty_tokens: Number(taskBounty || 0),
-          requires_manual: taskType === "manual",
-          max_per_user: taskMaxPerUser ? Number(taskMaxPerUser) : null,
-          allowed_domains: taskAllowedDomains
-            ? taskAllowedDomains.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)
-            : null,
-          requires_https: taskRequiresHttps,
-          min_evidence_length: Number(taskMinEvidenceLen || 10),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to update task");
-      clearTaskForm();
-      await loadTasks(selectedCampaignId, t);
-    } catch (e: any) { setError(e?.message || "Failed to update task"); }
-    finally { setLoading(false); }
-  }
-
-  function toggleSubmission(id: string, checked: boolean) {
-    setSelectedSubmissionIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
-  }
-
-  async function downloadCsv(type: "submissions" | "allocations" | "campaigns" | "audit") {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-
-    try {
-      const q = new URLSearchParams({ type });
-      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
-      const res = await fetch(`/api/admin/airdrop/export?${q.toString()}`, {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || "Export failed");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `airdrop-${type}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setError(e?.message || "Export failed");
-    }
-  }
-
-  async function loadAuditLogs(useToken?: string, append = false) {
-    const t = (useToken ?? token).trim();
-    if (!t) return setError("Enter admin token first");
-    try {
-      const q = new URLSearchParams();
-      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
-      if (auditActionFilter) q.set("action", auditActionFilter);
-      if (auditActorFilter) q.set("actor", auditActorFilter);
-      if (auditFrom) q.set("from", new Date(auditFrom).toISOString());
-      if (auditTo) q.set("to", new Date(auditTo).toISOString());
-      q.set("limit", "50");
-      if (append && auditNextBefore) q.set("before", auditNextBefore);
-
-      const res = await fetch(`/api/admin/airdrop/audit-log?${q.toString()}`, {
-        headers: { Authorization: `Bearer ${t}` },
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load audit logs");
-
-      const newLogs = data.logs || [];
-      setAuditLogs((prev) => (append ? [...prev, ...newLogs] : newLogs));
-      setAuditNextBefore(data.next_before || null);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load audit logs");
-    }
-  }
-
-  async function runReconcile() {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-    setLoading(true); setError(null);
-    try {
-      const q = new URLSearchParams();
-      if (selectedCampaignId) q.set("campaign_id", selectedCampaignId);
-      const res = await fetch(`/api/admin/airdrop/reconcile?${q.toString()}`, {
-        headers: { Authorization: `Bearer ${t}` },
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Reconcile failed");
-      setReconcileReport(data.report || []);
-      setAdminActionMessage(`Reconcile done. Checked: ${data.checked_campaigns}, mismatches: ${data.mismatches}`);
-    } catch (e: any) {
-      setError(e?.message || "Reconcile failed");
     } finally {
       setLoading(false);
     }
   }
 
-  async function applySubmissionAction(action: "approve" | "reject", ids?: string[]) {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-
-    const targetIds = (ids && ids.length > 0 ? ids : selectedSubmissionIds).filter(Boolean);
-    if (targetIds.length === 0) return setError("Select at least one submission");
-
-    let notes = "";
-    if (action === "reject") {
-      const input = window.prompt("Rejection reason (required):", "");
-      if (input === null) return;
-      notes = input.trim();
-      if (!notes) {
-        setError("Reject reason is required");
-        return;
-      }
-    }
-
-    setLoading(true); setError(null); setAdminActionMessage(null);
+  async function loadSubmissions(campaignId?: string, state?: string) {
+    const cid = campaignId ?? selectedCampaignId;
     try {
+      const headers = await authHeaders();
+      const q = new URLSearchParams();
+      q.set("state", state || stateFilter);
+      if (cid) q.set("campaign_id", cid);
+
+      const res = await fetch(`/api/admin/airdrop/submissions?${q.toString()}`, {
+        headers,
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load submissions");
+
+      setSubmissions(Array.isArray(data.submissions) ? data.submissions : []);
+      setSelectedIds([]);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load submissions");
+    }
+  }
+
+  async function runReview(action: "approve" | "reject", submissionIds: string[]) {
+    if (submissionIds.length === 0) return setError("Select at least one submission");
+    if (action === "reject" && !notes.trim()) return setError("Rejection note required");
+
+    setWorking(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const headers = await authHeaders();
       const res = await fetch("/api/admin/airdrop/submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ submission_ids: targetIds, action, reviewer: "iosif", notes: notes || null }),
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify({
+          action,
+          submission_ids: submissionIds,
+          reviewer: reviewer.trim() || email || "admin",
+          notes: notes.trim() || "",
+        }),
       });
+
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed to ${action}`);
 
-      setAdminActionMessage(`${action === "approve" ? "Approved" : "Rejected"}: ${data?.ok_count ?? 0} · Failed: ${data?.fail_count ?? 0}`);
-      await loadSubmissions(selectedCampaignId, t);
-      await loadCampaigns(t);
-    } catch (e: any) { setError(e?.message || "Review failed"); }
-    finally { setLoading(false); }
-  }
+      setMessage(
+        `${action === "approve" ? "Approved" : "Rejected"} ${data.ok_count || 0} submission(s)` +
+          ((data.fail_count || 0) > 0 ? `, ${data.fail_count} failed` : "")
+      );
 
-  async function toggleTaskActive(task: Task) {
-    const t = token.trim();
-    if (!t) return setError("Enter admin token first");
-
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch("/api/admin/airdrop/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ task_id: task.id, active: !task.active }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to toggle task");
-      await loadTasks(selectedCampaignId, t);
+      await loadSubmissions(selectedCampaignId, stateFilter);
+      setNotes("");
     } catch (e: any) {
-      setError(e?.message || "Failed to toggle task");
+      setError(e?.message || `Failed to ${action}`);
     } finally {
-      setLoading(false);
+      setWorking(false);
     }
   }
 
-  async function reviewSubmission(submissionId: string, action: "approve" | "reject") {
-    await applySubmissionAction(action, [submissionId]);
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleAllVisible() {
+    const ids = submissions.map((s) => s.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.includes(id));
+    setSelectedIds(allSelected ? [] : ids);
   }
 
   useEffect(() => {
-    const saved = localStorage.getItem("skopi_admin_token") || "";
-    if (saved) {
-      setToken(saved);
-      setTimeout(() => loadCampaigns(saved), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    getSessionToken().catch((e: any) => {
+      setError(e?.message || "Admin session not found");
+    });
   }, []);
 
   useEffect(() => {
-    if (!selectedCampaignId) return;
-    loadTasks(selectedCampaignId);
-    loadSubmissions(selectedCampaignId, undefined, submissionStateFilter);
-    loadAuditLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCampaignId, submissionStateFilter, auditActionFilter, auditActorFilter, auditFrom, auditTo]);
+    if (accessToken) {
+      loadCampaigns();
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (accessToken && selectedCampaignId) {
+      loadSubmissions(selectedCampaignId, stateFilter);
+    }
+  }, [accessToken, selectedCampaignId, stateFilter]);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "30px auto", padding: "0 16px" }}>
-      <h1>Admin · Airdrop Campaigns (V2)</h1>
-      <p style={{ opacity: 0.75 }}>Campaigns, tasks/bounties, and manual review queue.</p>
-      <p style={{ fontSize: 12, opacity: 0.7, marginTop: -4 }}>
-        Auth: Supabase allowlist token (preferred) or legacy ADMIN_READ_TOKEN fallback.
-      </p>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <label style={{ display: "block", marginBottom: 8 }}>Admin Token</label>
-        <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Enter ADMIN_READ_TOKEN" style={{ width: "100%", maxWidth: 520, padding: 8, marginBottom: 10 }} />
-        <button onClick={() => loadCampaigns()} disabled={loading}>{loading ? "Loading..." : "Unlock / Refresh"}</button>
-      </div>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Create Campaign</h3>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" />
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="draft">draft</option><option value="active">active</option><option value="paused">paused</option><option value="finalized">finalized</option><option value="archived">archived</option>
-          </select>
-          <input value={lockDays} onChange={(e) => setLockDays(e.target.value)} placeholder="Lock days" />
-          <input value={poolTokens} onChange={(e) => setPoolTokens(e.target.value)} placeholder="Pool tokens" />
-          <input value={capPerUser} onChange={(e) => setCapPerUser(e.target.value)} placeholder="Per-user cap" />
-          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
-        </div>
-        <div style={{ marginTop: 10 }}><button onClick={createCampaign} disabled={loading}>Create Campaign</button></div>
-      </div>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Tasks & Bounties</h3>
-        <div style={{ marginBottom: 8 }}>
-          <label>Campaign: <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)}>
-            <option value="">Select campaign</option>
-            {rows.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.status})</option>)}
-          </select></label>
-        </div>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Code</span>
-            <input value={taskCode} onChange={(e) => setTaskCode(e.target.value)} placeholder="e.g. follow_x" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Title</span>
-            <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Follow SKOpi on X" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Bounty Tokens</span>
-            <input value={taskBounty} onChange={(e) => setTaskBounty(e.target.value)} placeholder="e.g. 25" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Max Per User (optional)</span>
-            <input value={taskMaxPerUser} onChange={(e) => setTaskMaxPerUser(e.target.value)} placeholder="e.g. 1" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Type</span>
-            <select value={taskType} onChange={(e) => setTaskType(e.target.value as "auto" | "manual")}>
-              <option value="auto">Auto (instant allocation after basic checks)</option>
-              <option value="manual">Manual (goes to review queue)</option>
-            </select>
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Task Description (optional)</span>
-            <input value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} placeholder="What user must do" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Allowed Domains (CSV, optional)</span>
-            <input value={taskAllowedDomains} onChange={(e) => setTaskAllowedDomains(e.target.value)} placeholder="x.com,twitter.com" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Min Evidence URL Length</span>
-            <input value={taskMinEvidenceLen} onChange={(e) => setTaskMinEvidenceLen(e.target.value)} placeholder="10" />
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input type="checkbox" checked={taskRequiresHttps} onChange={(e) => setTaskRequiresHttps(e.target.checked)} />
-            Require HTTPS evidence URLs
-          </label>
-        </div>
-        <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, opacity: 0.75 }}>
-          Current mode: <strong>{taskType === "auto" ? "Auto" : "Manual review"}</strong>{editingTaskId ? " · Editing existing task" : ""}
-        </p>
-        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {!editingTaskId ? (
-            <button onClick={createTask} disabled={loading || !selectedCampaignId}>Add Task</button>
-          ) : (
-            <>
-              <button onClick={updateTask} disabled={loading}>Save Task Changes</button>
-              <button onClick={clearTaskForm} disabled={loading}>Cancel Edit</button>
-            </>
-          )}
-        </div>
-
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}><th style={{ textAlign: "left", padding: 8 }}>Code</th><th style={{ textAlign: "left", padding: 8 }}>Title</th><th style={{ textAlign: "left", padding: 8 }}>Bounty</th><th style={{ textAlign: "left", padding: 8 }}>Manual?</th><th style={{ textAlign: "left", padding: 8 }}>Active</th><th style={{ textAlign: "left", padding: 8 }}>Rules</th><th style={{ textAlign: "left", padding: 8 }}>Actions</th></tr></thead>
-          <tbody>
-            {tasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid #eee" }}><td style={{ padding: 8 }}><code>{t.code}</code></td><td style={{ padding: 8 }}>{t.title}</td><td style={{ padding: 8 }}>{t.bounty_tokens}</td><td style={{ padding: 8 }}>{t.requires_manual ? "yes" : "no"}</td><td style={{ padding: 8 }}>{t.active ? "yes" : "no"}</td><td style={{ padding: 8, fontSize: 12 }}>{t.requires_https === false ? "http/https" : "https only"} · min:{t.min_evidence_length ?? 10} · domains:{t.allowed_domains?.length ? t.allowed_domains.join("|") : "any"}</td><td style={{ padding: 8, display: "flex", gap: 6 }}><button onClick={() => startEditTask(t)} disabled={loading}>Edit</button><button onClick={() => toggleTaskActive(t)} disabled={loading}>{t.active ? "Disable" : "Enable"}</button></td></tr>)}
-            {tasks.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No tasks for selected campaign.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <h3 style={{ marginTop: 0, marginBottom: 0 }}>Submission Queue</h3>
-          <label style={{ fontSize: 13 }}>
-            Filter state{" "}
-            <select value={submissionStateFilter} onChange={(e) => setSubmissionStateFilter(e.target.value as "pending_review" | "verified_auto" | "verified_manual" | "revoked" | "all")}>
-              <option value="pending_review">pending_review</option>
-              <option value="verified_auto">verified_auto</option>
-              <option value="verified_manual">verified_manual</option>
-              <option value="revoked">revoked</option>
-              <option value="all">all</option>
-            </select>
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-          <button onClick={() => loadSubmissions()} disabled={loading}>Refresh Queue</button>
-          <button onClick={() => applySubmissionAction("approve")} disabled={loading || selectedSubmissionIds.length === 0}>Approve Selected ({selectedSubmissionIds.length})</button>
-          <button onClick={() => applySubmissionAction("reject")} disabled={loading || selectedSubmissionIds.length === 0}>Reject Selected ({selectedSubmissionIds.length})</button>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, fontSize: 12 }}>
-          <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f2f2" }}>all: {submissionCounts.all}</span>
-          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("pending_review") }}>pending: {submissionCounts.pending_review || 0}</span>
-          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_auto") }}>auto: {submissionCounts.verified_auto || 0}</span>
-          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("verified_manual") }}>manual: {submissionCounts.verified_manual || 0}</span>
-          <span style={{ padding: "2px 8px", borderRadius: 999, ...stateBadgeStyle("revoked") }}>revoked: {submissionCounts.revoked || 0}</span>
-        </div>
-        {adminActionMessage && <p style={{ marginTop: 8, color: "green" }}>{adminActionMessage}</p>}
-
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
-          <thead><tr style={{ background: "#f6f6f6" }}>
-            <th style={{ textAlign: "left", padding: 8 }}>
-              <input
-                type="checkbox"
-                checked={submissions.length > 0 && submissions.every((s) => selectedSubmissionIds.includes(s.id))}
-                onChange={(e) => {
-                  if (e.target.checked) setSelectedSubmissionIds(submissions.filter((s) => s.state === "pending_review").map((s) => s.id));
-                  else setSelectedSubmissionIds([]);
-                }}
-              />
-            </th>
-            <th style={{ textAlign: "left", padding: 8 }}>Submitted</th>
-            <th style={{ textAlign: "left", padding: 8 }}>Wallet</th>
-            <th style={{ textAlign: "left", padding: 8 }}>Handle</th>
-            <th style={{ textAlign: "left", padding: 8 }}>Evidence</th>
-            <th style={{ textAlign: "left", padding: 8 }}>State</th>
-            <th style={{ textAlign: "left", padding: 8 }}>Actions</th>
-          </tr></thead>
-          <tbody>
-            {submissions.map((s) => (
-              <tr key={s.id} style={{ borderTop: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedSubmissionIds.includes(s.id)}
-                    disabled={s.state !== "pending_review"}
-                    onChange={(e) => toggleSubmission(s.id, e.target.checked)}
-                  />
-                </td>
-                <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
-                <td style={{ padding: 8 }}><code>{s.wallet_address.slice(0, 10)}…</code></td>
-                <td style={{ padding: 8 }}>{s.handle || "-"}</td>
-                <td style={{ padding: 8 }}><a href={s.evidence_url} target="_blank" rel="noreferrer">Open</a></td>
-                <td style={{ padding: 8 }}>
-                  <span style={{ ...stateBadgeStyle(s.state), padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>{s.state}</span>
-                </td>
-                <td style={{ padding: 8, display: "flex", gap: 6 }}>
-                  <button onClick={() => reviewSubmission(s.id, "approve")} disabled={loading || s.state !== "pending_review"}>Approve</button>
-                  <button onClick={() => reviewSubmission(s.id, "reject")} disabled={loading || s.state !== "pending_review"}>Reject</button>
-                </td>
-              </tr>
-            ))}
-            {submissions.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No submissions for selected filter.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Ops Tools</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={runReconcile} disabled={loading}>Run Reconcile</button>
-          <button onClick={() => downloadCsv("submissions")} disabled={loading}>Export Submissions CSV</button>
-          <button onClick={() => downloadCsv("allocations")} disabled={loading}>Export Allocations CSV</button>
-          <button onClick={() => downloadCsv("campaigns")} disabled={loading}>Export Campaigns CSV</button>
-          <button onClick={() => downloadCsv("audit")} disabled={loading}>Export Audit CSV</button>
-          {reconcileReport.length > 0 && (
-            <span style={{ padding: "2px 8px", borderRadius: 999, background: reconcileReport.some((r) => !r.ok) ? "#fff2f2" : "#eafbea", color: reconcileReport.some((r) => !r.ok) ? "#8a1f1f" : "#1f6b2a", fontSize: 12 }}>
-              {reconcileReport.some((r) => !r.ok) ? `⚠ Mismatch: ${reconcileReport.filter((r) => !r.ok).length}` : "✓ No mismatches"}
-            </span>
-          )}
-        </div>
-
-        {reconcileReport.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginTop: 10 }}>
-            <thead>
-              <tr style={{ background: "#f6f6f6" }}>
-                <th style={{ textAlign: "left", padding: 8 }}>Campaign</th>
-                <th style={{ textAlign: "left", padding: 8 }}>Drift</th>
-                <th style={{ textAlign: "left", padding: 8 }}>Remaining</th>
-                <th style={{ textAlign: "left", padding: 8 }}>OK?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reconcileReport.map((r) => (
-                <tr key={r.campaign_id} style={{ borderTop: "1px solid #eee" }}>
-                  <td style={{ padding: 8 }}>{r.campaign_name}</td>
-                  <td style={{ padding: 8 }}>{r.drift_tokens}</td>
-                  <td style={{ padding: 8 }}>{r.remaining_tokens ?? "-"}</td>
-                  <td style={{ padding: 8 }}>{r.ok ? "yes" : "no"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Audit Log</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <label>
-            Action:{" "}
-            <input value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} placeholder="e.g. submission_approved" style={{ padding: 6 }} />
-          </label>
-          <label>
-            Actor:{" "}
-            <input value={auditActorFilter} onChange={(e) => setAuditActorFilter(e.target.value)} placeholder="e.g. iosif" style={{ padding: 6 }} />
-          </label>
-          <label>
-            From:{" "}
-            <input type="datetime-local" value={auditFrom} onChange={(e) => setAuditFrom(e.target.value)} style={{ padding: 6 }} />
-          </label>
-          <label>
-            To:{" "}
-            <input type="datetime-local" value={auditTo} onChange={(e) => setAuditTo(e.target.value)} style={{ padding: 6 }} />
-          </label>
-          <button onClick={() => loadAuditLogs()} disabled={loading}>Refresh Audit Log</button>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, fontSize: 12 }}>
-          {[
-            "",
-            "submission_approved",
-            "submission_rejected",
-            "task_created",
-            "task_updated",
-            "task_toggled",
-            "reconcile_run",
-          ].map((a) => (
-            <button
-              key={a || "all"}
-              onClick={() => setAuditActionFilter(a)}
-              style={{
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: "1px solid #ddd",
-                background: auditActionFilter === a ? "#111" : "#fff",
-                color: auditActionFilter === a ? "#fff" : "#111",
-              }}
-            >
-              {a || "all"}
+    <div style={{ padding: 24, color: "#fff" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gap: 16 }}>
+        <div
+          style={{
+            ...cardStyle(),
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03))",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>Admin Airdrop Review Queue</h1>
+              <div style={{ marginTop: 8, color: "rgba(255,255,255,.72)" }}>
+                Logged in as: {email || "checking session..."}
+              </div>
+            </div>
+            <button onClick={() => loadCampaigns()} style={buttonStyle("ghost")} disabled={loading || working}>
+              {loading ? "Loading..." : "Refresh"}
             </button>
-          ))}
+          </div>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#f6f6f6" }}>
-              <th style={{ textAlign: "left", padding: 8 }}>Time</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Action</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Actor</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Refs</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Metadata</th>
-            </tr>
-          </thead>
-          <tbody>
-            {auditLogs.map((log) => (
-              <tr key={log.id} style={{ borderTop: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>{new Date(log.created_at).toLocaleString()}</td>
-                <td style={{ padding: 8 }}><code>{log.action}</code></td>
-                <td style={{ padding: 8 }}>{log.actor || "-"}</td>
-                <td style={{ padding: 8, fontSize: 12 }}>
-                  c:{log.campaign_id ? `${log.campaign_id.slice(0, 8)}…` : "-"} · t:{log.task_id ? `${log.task_id.slice(0, 8)}…` : "-"} · s:{log.submission_id ? `${log.submission_id.slice(0, 8)}…` : "-"}
-                </td>
-                <td style={{ padding: 8, fontSize: 12, maxWidth: 340, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {log.metadata ? JSON.stringify(log.metadata) : "{}"}
-                </td>
-              </tr>
-            ))}
-            {auditLogs.length === 0 && <tr><td style={{ padding: 8 }} colSpan={5}>No audit logs loaded yet.</td></tr>}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 8 }}>
-          <button onClick={() => loadAuditLogs(undefined, true)} disabled={loading || !auditNextBefore}>
-            {auditNextBefore ? "Load More" : "No More Logs"}
-          </button>
+
+        {error ? (
+          <div style={{ ...cardStyle(), color: "#fca5a5", background: "rgba(127,29,29,.28)" }}>
+            {error}
+          </div>
+        ) : null}
+
+        {message ? (
+          <div style={{ ...cardStyle(), color: "#bbf7d0", background: "rgba(20,83,45,.28)" }}>
+            {message}
+          </div>
+        ) : null}
+
+        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
+          <div style={{ ...cardStyle(), display: "grid", gap: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 18 }}>Campaigns</div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {campaigns.map((c) => {
+                const active = c.id === selectedCampaignId;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCampaignId(c.id)}
+                    style={{
+                      textAlign: "left",
+                      background: active ? "rgba(59,130,246,.16)" : "rgba(255,255,255,.03)",
+                      border: active
+                        ? "1px solid rgba(96,165,250,.35)"
+                        : "1px solid rgba(255,255,255,.08)",
+                      color: "#fff",
+                      borderRadius: 14,
+                      padding: 14,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800 }}>{c.name}</div>
+                    <div style={{ marginTop: 6, color: "rgba(255,255,255,.68)", fontSize: 13 }}>
+                      {c.status} • {c.platform || "unknown"} • {c.verification_method || "unknown"}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {!campaigns.length ? (
+                <div style={{ color: "rgba(255,255,255,.62)" }}>No campaigns loaded yet.</div>
+              ) : null}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 16 }}>
+            <div style={cardStyle()}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>
+                    {selectedCampaign ? selectedCampaign.name : "Select a campaign"}
+                  </div>
+                  {selectedCampaign ? (
+                    <div style={{ marginTop: 8, color: "rgba(255,255,255,.72)", fontSize: 14 }}>
+                      platform: {selectedCampaign.platform || "n/a"} • proof: {selectedCampaign.proof_type || "n/a"} • method: {selectedCampaign.verification_method || "n/a"}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(["pending_review", "verified_manual", "verified_auto", "revoked", "all"] as const).map((state) => (
+                    <button
+                      key={state}
+                      onClick={() => setStateFilter(state)}
+                      style={{
+                        ...buttonStyle(stateFilter === state ? "primary" : "ghost"),
+                        padding: "8px 12px",
+                      }}
+                    >
+                      {state} ({counts[state] || 0})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={cardStyle()}>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "220px 1fr auto auto", gap: 10, alignItems: "center" }}>
+                  <input
+                    value={reviewer}
+                    onChange={(e) => setReviewer(e.target.value)}
+                    placeholder="reviewer"
+                    style={{
+                      background: "rgba(255,255,255,.05)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,.12)",
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      outline: "none",
+                    }}
+                  />
+                  <input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Approval note or rejection reason"
+                    style={{
+                      background: "rgba(255,255,255,.05)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,.12)",
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    onClick={() => runReview("approve", selectedIds)}
+                    style={buttonStyle("primary")}
+                    disabled={working || selectedIds.length === 0}
+                  >
+                    Approve selected
+                  </button>
+                  <button
+                    onClick={() => runReview("reject", selectedIds)}
+                    style={buttonStyle("danger")}
+                    disabled={working || selectedIds.length === 0}
+                  >
+                    Reject selected
+                  </button>
+                </div>
+
+                <div style={{ color: "rgba(255,255,255,.70)", fontSize: 14 }}>
+                  Selected: {selectedIds.length}
+                </div>
+              </div>
+            </div>
+
+            <div style={cardStyle()}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>Submissions</div>
+                <button onClick={toggleAllVisible} style={buttonStyle("ghost")}>
+                  {submissions.length > 0 && submissions.every((s) => selectedIds.includes(s.id))
+                    ? "Unselect all"
+                    : "Select all visible"}
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                {submissions.map((s) => {
+                  const checked = selectedIds.includes(s.id);
+                  const proof = s.proof_url || s.evidence_url || "";
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        border: checked
+                          ? "1px solid rgba(96,165,250,.34)"
+                          : "1px solid rgba(255,255,255,.08)",
+                        background: checked ? "rgba(59,130,246,.08)" : "rgba(255,255,255,.02)",
+                        borderRadius: 14,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "start" }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSelected(s.id)}
+                          style={{ marginTop: 4 }}
+                        />
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <span style={{ ...badgeStyle(s.state), borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 800 }}>
+                              {s.state}
+                            </span>
+                            <span style={{ color: "rgba(255,255,255,.62)", fontSize: 13 }}>
+                              submitted {new Date(s.submitted_at).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+                            <div><strong>User ID:</strong> {s.user_id || "—"}</div>
+                            <div><strong>Wallet:</strong> {s.wallet_address || "—"}</div>
+                            <div><strong>Handle:</strong> {s.handle || "—"}</div>
+                            <div><strong>Submission ID:</strong> {s.id}</div>
+                          </div>
+
+                          <div>
+                            <strong>Proof:</strong>{" "}
+                            {proof ? (
+                              <a
+                                href={proof}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: "#93c5fd", textDecoration: "underline" }}
+                              >
+                                Open proof
+                              </a>
+                            ) : (
+                              <span style={{ color: "rgba(255,255,255,.62)" }}>No proof URL</span>
+                            )}
+                          </div>
+
+                          {s.notes ? (
+                            <div style={{ color: "rgba(255,255,255,.74)" }}>
+                              <strong>Notes:</strong> {s.notes}
+                            </div>
+                          ) : null}
+
+                          {(s.reviewed_at || s.reviewer) ? (
+                            <div style={{ color: "rgba(255,255,255,.60)", fontSize: 13 }}>
+                              reviewed: {s.reviewed_at ? new Date(s.reviewed_at).toLocaleString() : "—"} by {s.reviewer || "—"}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <button
+                            onClick={() => runReview("approve", [s.id])}
+                            style={buttonStyle("primary")}
+                            disabled={working || s.state !== "pending_review"}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => runReview("reject", [s.id])}
+                            style={buttonStyle("danger")}
+                            disabled={working || s.state !== "pending_review"}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {!submissions.length ? (
+                  <div style={{ color: "rgba(255,255,255,.64)" }}>
+                    No submissions found for this filter.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, border: "1px solid #ddd" }}>
-        <thead>
-          <tr style={{ background: "#f6f6f6" }}>
-            <th style={{ textAlign: "left", padding: 8 }}>Created</th><th style={{ textAlign: "left", padding: 8 }}>Name</th><th style={{ textAlign: "left", padding: 8 }}>Status</th><th style={{ textAlign: "left", padding: 8 }}>Lock</th><th style={{ textAlign: "left", padding: 8 }}>Pool</th><th style={{ textAlign: "left", padding: 8 }}>Distributed</th><th style={{ textAlign: "left", padding: 8 }}>Per-user cap</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
-              <td style={{ padding: 8 }}>{new Date(r.created_at).toLocaleString()}</td>
-              <td style={{ padding: 8 }}>{r.name}</td>
-              <td style={{ padding: 8 }}>{r.status}</td>
-              <td style={{ padding: 8 }}>{r.lock_days}</td>
-              <td style={{ padding: 8 }}>{r.pool_tokens || "-"}</td>
-              <td style={{ padding: 8 }}>{r.distributed_tokens || "0"}</td>
-              <td style={{ padding: 8 }}>{r.per_user_cap || "-"}</td>
-            </tr>
-          ))}
-          {rows.length === 0 && <tr><td style={{ padding: 8 }} colSpan={7}>No campaigns yet.</td></tr>}
-        </tbody>
-      </table>
-    </main>
+    </div>
   );
 }
