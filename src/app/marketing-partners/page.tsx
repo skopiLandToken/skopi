@@ -262,6 +262,70 @@ function TabButton({
   );
 }
 
+
+const UMAMI_SHARE = "https://analytics.skopi.io/share/qN9aiZSsobaNfwxr";
+
+const UMAMI_VIEWS: { label: string; path: string }[] = [
+  { label: "Overview", path: "" },
+  { label: "Traffic", path: "/traffic" },
+  { label: "UTM", path: "/utm" },
+  { label: "Realtime", path: "/realtime" },
+  { label: "Events", path: "/events" },
+  { label: "Sessions", path: "/sessions" },
+  { label: "Performance", path: "/performance" },
+  { label: "Behavior", path: "/behavior" },
+];
+
+function AnalyticsTab() {
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ fontSize: 13, opacity: 0.65 }}>
+        Live site analytics powered by Umami. Switch views using the buttons below.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {UMAMI_VIEWS.map((view) => (
+          
+            key={view.path}
+            href={`?tab=analytics&uview=${encodeURIComponent(view.path)}`}
+            style={{
+              textDecoration: "none",
+              padding: "7px 12px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,.12)",
+              background: "rgba(255,255,255,.04)",
+              color: "inherit",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            {view.label}
+          </a>
+        ))}
+      </div>
+      <div
+        style={{
+          border: "1px solid rgba(255,255,255,.10)",
+          borderRadius: 16,
+          overflow: "hidden",
+          background: "rgba(255,255,255,.02)",
+        }}
+      >
+        <iframe
+          src={UMAMI_SHARE}
+          style={{ width: "100%", height: 680, border: "none", display: "block" }}
+          loading="lazy"
+        />
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.5 }}>
+        Full analytics dashboard available at{" "}
+        <a href="https://analytics.skopi.io" target="_blank" rel="noreferrer" style={{ color: "#8ae7f5" }}>
+          analytics.skopi.io
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default async function MarketingPartnersPage({
   searchParams,
 }: {
@@ -274,8 +338,8 @@ export default async function MarketingPartnersPage({
 
   const rawTab = resolvedSearchParams?.tab;
   const tab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const activeTab = ["overview", "traffic", "conversions", "commissions", "payouts", "leaderboard"].includes(tab || "")
-    ? (tab as "overview" | "traffic" | "conversions" | "commissions" | "payouts" | "leaderboard")
+  const activeTab = ["overview", "traffic", "conversions", "commissions", "payouts", "leaderboard", "analytics"].includes(tab || "")
+    ? (tab as "overview" | "traffic" | "conversions" | "commissions" | "payouts" | "leaderboard" | "analytics")
     : "overview";
 
   const supabase = await supabaseServer();
@@ -519,6 +583,7 @@ export default async function MarketingPartnersPage({
             <TabButton active={activeTab === "commissions"} href={tabHref("commissions")} label="Commissions" />
             <TabButton active={activeTab === "payouts"} href={tabHref("payouts")} label="Payouts" />
             <TabButton active={activeTab === "leaderboard"} href={tabHref("leaderboard")} label="Leaderboard" />
+            <TabButton active={activeTab === "analytics"} href={tabHref("analytics")} label="Analytics" />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
@@ -654,6 +719,13 @@ export default async function MarketingPartnersPage({
                 rows={leaderboardRows}
               />
             </Card>
+          </div>
+        ) : null}
+      </div>
+
+        {activeTab === "analytics" ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <AnalyticsTab />
           </div>
         ) : null}
       </div>
