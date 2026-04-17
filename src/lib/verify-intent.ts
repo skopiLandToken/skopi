@@ -154,6 +154,35 @@ export async function verifyIntentObject(intent: IntentRow): Promise<VerifyResul
     console.error("finalize_tranche_on_confirm threw:", e);
   }
 
+  // Fire-and-forget: notify ORB of confirmed purchase
+  try {
+    const orbUrl = process.env.NEVSKY_ORB_URL;
+    const orbSecret = process.env.SKOPI_WEBHOOK_SECRET;
+    if (orbUrl && orbSecret) {
+      fetch(`${orbUrl}/ingest/skopi-event`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-skopi-secret": orbSecret,
+        },
+        body: JSON.stringify({
+          event_type: "purchase_confirmed",
+          source_entity_type: "purchase_intent",
+          source_entity_id: intent.id,
+          event_key: `purchase_confirmed:${intent.id}`,
+          intent_id: intent.id,
+          tx_signature: updated?.tx_signature,
+          confirmed_at: updated?.confirmed_at,
+          tokens_skopi: updated?.tokens_skopi,
+          price_usdc_used: updated?.price_usdc_used,
+          tranche_id: updated?.tranche_id,
+        }),
+      }).catch((e) => console.error("ORB webhook failed:", e));
+    }
+  } catch (e) {
+    console.error("ORB webhook setup failed:", e);
+  }
+
   return { ok: true as const, matched: true as const, intent: updated };
 }
 
