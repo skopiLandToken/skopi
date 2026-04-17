@@ -285,6 +285,7 @@ function AnalyticsTab() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {UMAMI_VIEWS.map((view) => (
           
+          <a
             key={view.path}
             href={`?tab=analytics&uview=${encodeURIComponent(view.path)}`}
             style={{
