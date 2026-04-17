@@ -722,7 +722,6 @@ export default async function MarketingPartnersPage({
             </Card>
           </div>
         ) : null}
-      </div>
 
         {activeTab === "analytics" ? (
           <div style={{ display: "grid", gap: 14 }}>
