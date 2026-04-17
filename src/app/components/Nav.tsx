@@ -148,7 +148,7 @@ export default async function Nav() {
 
           {email ? (
             <>
-              <Button href="/affiliate" variant="secondary">Marketing Partner</Button>
+              <Button href="/marketing-partners" variant="secondary">Marketing Partner</Button>
               <Button href="/me/purchases" variant="secondary">My Purchases</Button>
 
               {isAdmin ? (
