@@ -1,0 +1,18 @@
+FILE: /home/ubuntu/.config/solana/skopi/keys/bucket-community.json
+2FS5yYk4RCuxTbCSkpxDKcWhBjMaD8maFJupduZAXHdF
+
+FILE: /home/ubuntu/.config/solana/skopi/keys/bucket-founders.json
+Bgi98iCKhtoTsABmQ1dRN7MpoJZ6vkP5eHRSSijDfG5y
+
+FILE: /home/ubuntu/.config/solana/skopi/keys/bucket-liquidity.json
+9ZtWhWipWNfcXHeb4i9KjGUQ2cMjTy13gF7sXf8XZMaq
+
+FILE: /home/ubuntu/.config/solana/skopi/keys/bucket-public-sale.json
+F5PFZjcNBsRtHJz9GA9vZw7bx5Ke3QxXXdNnumjK76rq
+
+FILE: /home/ubuntu/.config/solana/skopi/keys/bucket-treasury.json
+CuWUYB6gL3dBpLPK5gk9bk6BGDQwFUzuKExrTPzU5xms
+
+FILE: /home/ubuntu/.config/solana/skopi/treasury-local.json
+HBipzsmuvMb18vSLJZuCEHELHa7SDV1XD3nfYN6esGjX
+
