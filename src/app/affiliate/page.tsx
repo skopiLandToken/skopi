@@ -285,7 +285,7 @@ export default async function AffiliatePage({
   if (!user?.id) {
     return (
       <Container>
-        <Card title="Affiliate" subtitle="You must be logged in to view your affiliate dashboard.">
+        <Card title="Marketing Partner" subtitle="You must be logged in to view your marketing partner dashboard.">
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button href="/login">Login</Button>
             <Button href="/sale" variant="secondary">Go to Sale</Button>
@@ -304,7 +304,7 @@ export default async function AffiliatePage({
   if (partnerErr || !partner?.referral_code) {
     return (
       <Container>
-        <Card title="Affiliate" subtitle="Could not load your affiliate profile.">
+        <Card title="Marketing Partner" subtitle="Could not load your marketing partner profile.">
           <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(partnerErr, null, 2)}</pre>
         </Card>
       </Container>
@@ -480,7 +480,7 @@ export default async function AffiliatePage({
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Pill text="Affiliate" />
+                <Pill text="Marketing Partner" />
                 <Pill text={refCode} />
                 {partner.auto_enrolled ? <Pill text="Auto-enrolled" /> : null}
               </div>

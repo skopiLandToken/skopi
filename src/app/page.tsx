@@ -19,7 +19,7 @@ export default async function Home() {
             </div>
           </Card>
 
-          <Card title="Affiliate" subtitle="Get your referral link + view pending/paid earnings.">
+          <Card title="Marketing Partner" subtitle="Get your referral link + view pending/paid earnings.">
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Button href="/affiliate">Affiliate Dashboard</Button>
               <Button href="/sale" variant="secondary">Share Sale Link</Button>

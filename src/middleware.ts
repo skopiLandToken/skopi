@@ -24,7 +24,7 @@ export async function middleware(req: NextRequest) {
       sameSite: "lax",
       secure: true,
       path: "/",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60 * 24 * 45, // 45 days
     });
   }
 

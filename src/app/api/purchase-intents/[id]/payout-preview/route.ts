@@ -5,9 +5,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-const RATE_L1 = 0.20;
-const RATE_L2 = 0.10;
-const RATE_L3 = 0.05;
+const RATE_L1 = 0.08;
+const RATE_L2 = 0.03;
+const RATE_L3 = 0.01;
 
 export async function GET(
   _req: Request,

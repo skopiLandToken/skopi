@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "SKOpi Portal",
-  description: "Buy SKOpi, track purchases, and manage affiliate earnings.",
+  description: "Buy SKOpi, track purchases, and manage marketing partner earnings.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
