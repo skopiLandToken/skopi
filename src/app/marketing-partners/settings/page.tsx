@@ -81,7 +81,7 @@ export default function MarketingPartnerSettingsPage() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Marketing Partner Settings</h1>
       <p style={{ opacity: 0.8, marginBottom: 20 }}>
-        Set the Solana wallet address where you want to receive USDC affiliate payouts.
+        Set the Solana wallet address where you want to receive USDC marketing partner payouts.
       </p>
 
       <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>

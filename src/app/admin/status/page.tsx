@@ -36,7 +36,7 @@ export default async function AdminStatusPage() {
 
   const links = [
     { href: "/sale", label: "Sale" },
-    { href: "/affiliate", label: "Marketing Partner" },
+    { href: "/marketing-partners", label: "Marketing Partner" },
     { href: "/me/purchases", label: "My Purchases" },
     { href: "/admin/intents", label: "Admin Intents" },
     { href: "/admin/commissions", label: "Admin Commissions" },

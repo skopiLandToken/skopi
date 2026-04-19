@@ -33,7 +33,7 @@ export async function middleware(req: NextRequest) {
     const utmSource = searchParams.get("utm_source");
     const utmCampaign = searchParams.get("utm_campaign");
 
-    await fetch(`${origin}/api/affiliate/click`, {
+    await fetch(`${origin}/api/marketing-partners/click`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

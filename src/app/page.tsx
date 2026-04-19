@@ -7,7 +7,7 @@ export default async function Home() {
         <div>
           <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3 }}>SKOpi Portal</h1>
           <div style={{ marginTop: 8, opacity: 0.85, maxWidth: 760 }}>
-            Buy SKOpi, track your purchases, and (if you’re an affiliate) share your link and see earnings.
+            Buy SKOpi, track your purchases, and (if you’re an marketing partner) share your link and see earnings.
           </div>
         </div>
 
@@ -21,7 +21,7 @@ export default async function Home() {
 
           <Card title="Marketing Partner" subtitle="Get your referral link + view pending/paid earnings.">
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button href="/affiliate">Affiliate Dashboard</Button>
+              <Button href="/marketing-partners">Marketing Partner Dashboard</Button>
               <Button href="/sale" variant="secondary">Share Sale Link</Button>
             </div>
           </Card>
@@ -39,7 +39,7 @@ export default async function Home() {
             <li>Go to <b>Sale</b>, pick an amount.</li>
             <li>You’ll land on a <b>Receipt</b> with payment steps.</li>
             <li>Click <b>Pay with Phantom</b>, then <b>Verify</b>.</li>
-            <li>Track status in <b>My Purchases</b>. Affiliates track earnings in <b>Affiliate</b>.</li>
+            <li>Track status in <b>My Purchases</b>. Marketing Partners track earnings in <b>Marketing Partner</b>.</li>
           </ol>
         </Card>
       </div>

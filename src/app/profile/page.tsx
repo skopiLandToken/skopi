@@ -51,7 +51,7 @@ export default async function ProfilePage() {
         <div>
           <h1 style={{ margin: 0 }}>Profile</h1>
           <div style={{ marginTop: 8, opacity: 0.85 }}>
-            Account and affiliate details.
+            Account and marketing partner details.
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export default async function ProfilePage() {
           </div>
         </Card>
 
-        <Card title="Affiliate Details">
+        <Card title="Marketing Partner Details">
           {partner ? (
             <div style={{ display: "grid", gap: 10 }}>
               <div><strong>Referral Code:</strong> {partner.referral_code}</div>
@@ -77,13 +77,13 @@ export default async function ProfilePage() {
               <div><strong>Partner Created:</strong> {formatDateTime(partner.created_at)}</div>
             </div>
           ) : (
-            <div>No affiliate record found yet.</div>
+            <div>No marketing partner record found yet.</div>
           )}
         </Card>
 
         <Card title="Quick Actions">
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Button href="/affiliate" variant="secondary">Affiliate Dashboard</Button>
+            <Button href="/marketing-partners" variant="secondary">Marketing Partner Dashboard</Button>
             <Button href="/me/purchases" variant="secondary">My Purchases</Button>
             <Button href="/sale" variant="secondary">Sale</Button>
             <Button href="/logout">Logout</Button>

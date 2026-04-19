@@ -54,7 +54,7 @@ export default async function AdminPayoutsPage() {
         <div>
           <h1 style={{ margin: 0 }}>Admin: Payouts</h1>
           <div style={{ marginTop: 8, opacity: 0.85 }}>
-            Groups pending affiliate commissions by ref code.
+            Groups pending marketing partner commissions by ref code.
           </div>
           <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button href="/admin/status" variant="secondary">Status</Button>

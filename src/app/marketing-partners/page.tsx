@@ -714,7 +714,7 @@ export default async function MarketingPartnersPage({
               <StatCard title="Top Commissions" value={formatMoney(Number(leaderboard[0]?.total_commission_usdc || 0))} />
             </div>
 
-            <Card title="Affiliate Leaderboard" subtitle="Top affiliates by commissions, revenue, and traffic">
+            <Card title="Marketing Partner Leaderboard" subtitle="Top marketing partners by commissions, revenue, and traffic">
               <DataTable
                 headers={["Rank", "Code", "Unique Clicks", "Purchases", "Revenue", "Commissions", "Joined"]}
                 rows={leaderboardRows}

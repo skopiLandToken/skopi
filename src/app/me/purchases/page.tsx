@@ -46,7 +46,7 @@ export default async function MyPurchasesPage() {
           </div>
           <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button href="/sale">Buy More</Button>
-            <Button href="/affiliate" variant="secondary">Affiliate</Button>
+            <Button href="/marketing-partners" variant="secondary">Marketing Partner</Button>
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export default async function MyPurchasesPage() {
                 {String(i.status) !== "confirmed" ? (
                   <Button href={`/receipt/${i.id}`} variant="secondary">Resume</Button>
                 ) : (
-                  <Button href="/affiliate" variant="secondary">View Affiliate</Button>
+                  <Button href="/marketing-partners" variant="secondary">View Marketing Partner</Button>
                 )}
               </div>
             </Card>
