@@ -61,3 +61,4 @@ next
 skopi-fresh@0.1.0
 supabase/.temp/
 src/app/sale/sale-client.tsx.bak
+*.akira-backup

@@ -1,46 +1,428 @@
-/* SKOpi Global Theme — Fintech Dark (Navy + Teal) */
-:root{
-  --bg: #07111f;            /* deep navy */
-  --surface: #0b1a2f;       /* card surface */
-  --surface-2: #0e223d;     /* elevated surface */
-  --border: rgba(255,255,255,.10);
-  --text: rgba(255,255,255,.92);
-  --muted: rgba(255,255,255,.70);
-  --accent: #22d3ee;        /* teal */
-  --accentHover: #5eead4;   /* teal hover */
-  --danger: #ef4444;
+/* =====================================================================
+ * SKOpi App — Global Theme & Design System
+ * =====================================================================
+ *
+ * Origin     : globals.css (Akira), commit cd88205 — Apr 2026
+ * Rewrite    : Yakov, Apr 28 2026
+ * Repo       : github.com/skopiLandToken/skopi
+ * Owner      : Iosif Skorohodov / SKOpi Global Holdings, Inc.
+ *
+ * ---------------------------------------------------------------------
+ * DOCTRINE — read before editing.
+ * ---------------------------------------------------------------------
+ *
+ * 1. Brand DNA (LOCKED — do not change without Iosif's explicit call):
+ *    - Deep navy base, teal accent, magenta CTA reserved for highest-
+ *      conversion actions only.
+ *    - Two layered radial gradients on the body (cyan + mint) are the
+ *      brand signature — do not remove or replace with a flat color.
+ *    - Frosted glass header (semi-transparent navy + backdrop blur).
+ *    - System font stack — no web fonts. Ever. Page paint stays fast.
+ *
+ * 2. Token discipline (LOCKED):
+ *    - Components must consume SEMANTIC tokens (--surface, --text,
+ *      --accent, --space-N, --radius-N, etc.), never RAW palette
+ *      tokens (--c-navy-900, --c-teal-400) directly.
+ *    - Inline styles are PERMITTED only when they consume tokens via
+ *      var(...). Hardcoded literals like `border: "1px solid #333"`
+ *      or `padding: "12px 14px"` are forbidden — use a class, or use
+ *      `style={{ padding: "var(--space-3)" }}`.
+ *
+ * 3. Light/dark theming (LOCKED):
+ *    - Dark is the polished, intended experience.
+ *    - Light exists so the app respects user OS preference and we
+ *      can ship a toggle later. It is functional, not pixel-perfect.
+ *    - Theme is selected by `data-theme="dark"` or `data-theme="light"`
+ *      on <html>. With no attribute set, prefers-color-scheme decides.
+ *
+ * 4. btn-brand reservation rule (LOCKED — Apr 28 2026):
+ *    - .btn-brand (magenta gradient) is reserved for the SINGLE
+ *      highest-conversion action on a page.
+ *    - Never two .btn-brand on the same page.
+ *    - Never used as decoration. Never used to "draw attention" to
+ *      a non-conversion action.
+ *    - If a page has no conversion action, it has no .btn-brand.
+ *    - Examples:
+ *        Home    → "Buy SKOpi Now"
+ *        Sale    → "Pay with Phantom"
+ *        Receipt → "Verify"
+ *        Login   → "Log in"
+ *        Profile → none
+ *
+ * 5. Spacing scale: 4px base. All spacing tokens are multiples of 4px.
+ *    Type scale: 8 steps. Radius scale: 6 steps + pill.
+ *
+ * ---------------------------------------------------------------------
+ * STRUCTURE OF THIS FILE (in order):
+ *   §1  Raw palette (--c-*)
+ *   §2  Scale tokens (space, radius, type, shadow, layout)
+ *   §3  Semantic tokens — dark theme (default)
+ *   §4  Semantic tokens — light theme
+ *   §5  Auto theme via prefers-color-scheme
+ *   §6  Base reset + body
+ *   §7  Layout primitives (.app-shell, .main, .container, .page-*)
+ *   §8  Components (.card, .pill, .input-field, etc.)
+ *   §9  Buttons (.btn, .btn-*)
+ *   §10 Header
+ *   §11 Utility classes (.stack-*, .row-*, .text-*, .muted)
+ *   §12 Accessibility helpers (focus rings, sr-only)
+ *   §13 Reduced motion
+ * ===================================================================== */
 
-  --radius: 16px;
-  --radius-sm: 12px;
 
-  --shadow: 0 10px 28px rgba(0,0,0,.30);
-  --shadow-sm: 0 6px 18px rgba(0,0,0,.22);
+/* =====================================================================
+ * §1 — Raw palette
+ * Never use these directly in components. They feed semantic tokens
+ * in §3 and §4. Adding a color? Add it here first, then map it to a
+ * semantic token, then use the semantic token.
+ * ===================================================================== */
+:root {
+  /* Navy — base + surfaces */
+  --c-navy-950: #050b15;
+  --c-navy-900: #07111f;
+  --c-navy-800: #0b1a2f;
+  --c-navy-700: #0e223d;
+  --c-navy-600: #122b4c;
 
-  --container: 1100px;
+  /* Teal — primary accent */
+  --c-teal-300: #5eead4;
+  --c-teal-400: #22d3ee;
+  --c-teal-500: #06b6d4;
+  --c-teal-600: #0891b2;
+
+  /* Magenta — reserved CTA brand color */
+  --c-magenta-300: #e66bf3;
+  --c-magenta-400: #d946ef;
+  --c-magenta-500: #c026d3;
+  --c-magenta-600: #a21caf;
+  --c-magenta-700: #86198f;
+
+  /* Gold — airdrop / scarcity signaling */
+  --c-gold-300: #f3d36b;
+  --c-gold-400: #d4af37;
+  --c-gold-500: #b8941f;
+
+  /* Red — danger */
+  --c-red-400: #ef4444;
+  --c-red-500: #dc2626;
+  --c-red-600: #b91c1c;
+
+  /* Green — success */
+  --c-green-400: #22c55e;
+  --c-green-500: #16a34a;
+
+  /* Cloud — light theme base */
+  --c-cloud-50:  #f8fafc;
+  --c-cloud-100: #f1f5f9;
+  --c-cloud-200: #e2e8f0;
+  --c-cloud-300: #cbd5e1;
+  --c-cloud-400: #94a3b8;
+  --c-slate-700: #334155;
+  --c-slate-800: #1e293b;
+  --c-slate-900: #0f172a;
+
+  /* Pure */
+  --c-white: #ffffff;
+  --c-black: #000000;
 }
 
-/* Base reset-ish */
-* { box-sizing: border-box; }
-html, body { height: 100%; }
+
+/* =====================================================================
+ * §2 — Scale tokens (theme-independent)
+ * These don't change between light and dark. Sizes, spacing, motion.
+ * ===================================================================== */
+:root {
+  /* Spacing — 4px base */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Border radius */
+  --radius-xs:  6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* Typography — size / line-height / letter-spacing */
+  --font-display-size: 40px;
+  --font-display-line: 1.05;
+  --font-display-track: -2.4px;
+
+  --font-h1-size: 28px;
+  --font-h1-line: 1.15;
+  --font-h1-track: -0.3px;
+
+  --font-h2-size: 20px;
+  --font-h2-line: 1.25;
+  --font-h2-track: -0.2px;
+
+  --font-h3-size: 16px;
+  --font-h3-line: 1.4;
+  --font-h3-track: 0;
+
+  --font-body-size: 14px;
+  --font-body-line: 1.55;
+  --font-body-track: 0;
+
+  --font-body-sm-size: 13px;
+  --font-body-sm-line: 1.5;
+  --font-body-sm-track: 0;
+
+  --font-meta-size: 12px;
+  --font-meta-line: 1.4;
+  --font-meta-track: 0;
+
+  --font-micro-size: 11px;
+  --font-micro-line: 1.3;
+  --font-micro-track: 0.6px;
+
+  /* Font families */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Roboto, Helvetica, Arial, "Apple Color Emoji",
+               "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
+
+  /* Layout */
+  --container-max: 1100px;
+  --container-narrow: 540px;
+
+  /* Motion */
+  --motion-fast: 80ms;
+  --motion-base: 120ms;
+  --motion-slow: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+
+/* =====================================================================
+ * §3 — Semantic tokens — DARK theme (default)
+ * Component CSS should use ONLY tokens from this group, never raw
+ * palette values from §1.
+ * ===================================================================== */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: var(--c-navy-900);
+  --surface: var(--c-navy-800);
+  --surface-2: var(--c-navy-700);
+  --surface-glass: rgba(6, 12, 22, 0.55);
+  --surface-overlay: rgba(0, 0, 0, 0.50);
+
+  /* Text */
+  --text: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(255, 255, 255, 0.70);
+  --text-faint: rgba(255, 255, 255, 0.45);
+  --text-on-accent: #001018;
+  --text-on-brand: var(--c-white);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-accent: rgba(34, 211, 238, 0.45);
+  --border-warm: rgba(212, 175, 55, 0.40);
+
+  /* Accents (semantic) */
+  --accent: var(--c-teal-400);
+  --accent-hover: var(--c-teal-300);
+  --accent-soft: rgba(34, 211, 238, 0.12);
+  --accent-soft-strong: rgba(34, 211, 238, 0.20);
+
+  --warm: var(--c-gold-300);
+  --warm-soft: rgba(212, 175, 55, 0.14);
+
+  --danger: var(--c-red-400);
+  --danger-soft: rgba(239, 68, 68, 0.14);
+
+  --success: var(--c-green-400);
+  --success-soft: rgba(34, 197, 94, 0.14);
+
+  /* Brand CTA gradient (reserved — see doctrine §4) */
+  --brand-grad: linear-gradient(135deg, var(--c-magenta-400) 0%, var(--c-magenta-600) 100%);
+  --brand-grad-hover: linear-gradient(135deg, var(--c-magenta-300) 0%, var(--c-magenta-500) 100%);
+  --brand-shadow: 0 10px 22px rgba(169, 31, 175, 0.32);
+
+  /* Card surface gradient (subtle white tint over surface) */
+  --card-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  --card-grad-elevated: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+
+  /* Body signature gradients (the brand glow) */
+  --body-glow:
+    radial-gradient(1200px 700px at 20% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+    radial-gradient(900px 600px at 80% 10%, rgba(94, 234, 212, 0.10), transparent 60%);
+
+  /* Shadows */
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.40);
+
+  /* Focus ring — accessibility */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+
+/* =====================================================================
+ * §4 — Semantic tokens — LIGHT theme
+ * Functional, not pixel-perfect. Designed for OS-level prefers-color-
+ * scheme respect and a future toggle. The dark experience is canonical.
+ * ===================================================================== */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: var(--c-cloud-50);
+  --surface: var(--c-white);
+  --surface-2: var(--c-cloud-100);
+  --surface-glass: rgba(255, 255, 255, 0.75);
+  --surface-overlay: rgba(15, 23, 42, 0.40);
+
+  --text: rgba(15, 23, 42, 0.94);
+  --text-muted: rgba(15, 23, 42, 0.65);
+  --text-faint: rgba(15, 23, 42, 0.40);
+  --text-on-accent: var(--c-white);
+  --text-on-brand: var(--c-white);
+
+  --border: rgba(15, 23, 42, 0.10);
+  --border-strong: rgba(15, 23, 42, 0.18);
+  --border-accent: rgba(8, 145, 178, 0.45);
+  --border-warm: rgba(184, 148, 31, 0.45);
+
+  --accent: var(--c-teal-600);
+  --accent-hover: var(--c-teal-500);
+  --accent-soft: rgba(8, 145, 178, 0.10);
+  --accent-soft-strong: rgba(8, 145, 178, 0.18);
+
+  --warm: var(--c-gold-500);
+  --warm-soft: rgba(184, 148, 31, 0.12);
+
+  --danger: var(--c-red-500);
+  --danger-soft: rgba(220, 38, 38, 0.10);
+
+  --success: var(--c-green-500);
+  --success-soft: rgba(22, 163, 74, 0.10);
+
+  --brand-grad: linear-gradient(135deg, var(--c-magenta-500) 0%, var(--c-magenta-700) 100%);
+  --brand-grad-hover: linear-gradient(135deg, var(--c-magenta-400) 0%, var(--c-magenta-600) 100%);
+  --brand-shadow: 0 8px 18px rgba(134, 25, 143, 0.28);
+
+  --card-grad: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 1));
+  --card-grad-elevated: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(241, 245, 249, 1));
+
+  --body-glow:
+    radial-gradient(1200px 700px at 20% 0%, rgba(34, 211, 238, 0.10), transparent 55%),
+    radial-gradient(900px 600px at 80% 10%, rgba(94, 234, 212, 0.08), transparent 60%);
+
+  --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.14);
+
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+
+/* =====================================================================
+ * §5 — Auto theme — respect OS preference when no [data-theme] is set
+ * If the user's OS is set to light mode and the site has no explicit
+ * theme attribute, switch to light tokens. An explicit data-theme on
+ * <html> wins over this.
+ * ===================================================================== */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: var(--c-cloud-50);
+    --surface: var(--c-white);
+    --surface-2: var(--c-cloud-100);
+    --surface-glass: rgba(255, 255, 255, 0.75);
+    --surface-overlay: rgba(15, 23, 42, 0.40);
+    --text: rgba(15, 23, 42, 0.94);
+    --text-muted: rgba(15, 23, 42, 0.65);
+    --text-faint: rgba(15, 23, 42, 0.40);
+    --text-on-accent: var(--c-white);
+    --text-on-brand: var(--c-white);
+    --border: rgba(15, 23, 42, 0.10);
+    --border-strong: rgba(15, 23, 42, 0.18);
+    --border-accent: rgba(8, 145, 178, 0.45);
+    --border-warm: rgba(184, 148, 31, 0.45);
+    --accent: var(--c-teal-600);
+    --accent-hover: var(--c-teal-500);
+    --accent-soft: rgba(8, 145, 178, 0.10);
+    --accent-soft-strong: rgba(8, 145, 178, 0.18);
+    --warm: var(--c-gold-500);
+    --warm-soft: rgba(184, 148, 31, 0.12);
+    --danger: var(--c-red-500);
+    --danger-soft: rgba(220, 38, 38, 0.10);
+    --success: var(--c-green-500);
+    --success-soft: rgba(22, 163, 74, 0.10);
+    --brand-grad: linear-gradient(135deg, var(--c-magenta-500) 0%, var(--c-magenta-700) 100%);
+    --brand-grad-hover: linear-gradient(135deg, var(--c-magenta-400) 0%, var(--c-magenta-600) 100%);
+    --brand-shadow: 0 8px 18px rgba(134, 25, 143, 0.28);
+    --card-grad: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 1));
+    --card-grad-elevated: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(241, 245, 249, 1));
+    --body-glow:
+      radial-gradient(1200px 700px at 20% 0%, rgba(34, 211, 238, 0.10), transparent 55%),
+      radial-gradient(900px 600px at 80% 10%, rgba(94, 234, 212, 0.08), transparent 60%);
+    --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.10);
+    --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.14);
+  }
+}
+
+
+/* =====================================================================
+ * §6 — Base reset and body
+ * ===================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  background: radial-gradient(1200px 700px at 20% 0%, rgba(34,211,238,.12), transparent 55%),
-              radial-gradient(900px 600px at 80% 10%, rgba(94,234,212,.10), transparent 60%),
-              var(--bg);
+  background: var(--body-glow), var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  font-family: var(--font-sans);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-a { color: inherit; }
-a:hover { color: var(--accentHover); }
+a {
+  color: inherit;
+}
+a:hover {
+  color: var(--accent-hover);
+}
 
 code, pre, kbd, samp {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
 }
 
-/* Layout helpers */
+h1 { font-size: var(--font-h1-size); line-height: var(--font-h1-line); letter-spacing: var(--font-h1-track); font-weight: 700; margin: 0; }
+h2 { font-size: var(--font-h2-size); line-height: var(--font-h2-line); letter-spacing: var(--font-h2-track); font-weight: 700; margin: 0; }
+h3 { font-size: var(--font-h3-size); line-height: var(--font-h3-line); letter-spacing: var(--font-h3-track); font-weight: 600; margin: 0; }
+p  { margin: 0; }
+
+
+/* =====================================================================
+ * §7 — Layout primitives
+ * ===================================================================== */
 .app-shell {
   min-height: 100%;
   display: flex;
@@ -51,112 +433,388 @@ code, pre, kbd, samp {
   flex: 1;
 }
 
-/* Reusable UI classes */
 .container {
-  max-width: var(--container);
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: var(--space-6) var(--space-4);
 }
 
+.page-narrow {
+  max-width: var(--container-narrow);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.page-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+
+/* =====================================================================
+ * §8 — Components: cards, pills, inputs
+ * ===================================================================== */
 .card {
-  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  background: var(--card-grad);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   box-shadow: var(--shadow-sm);
 }
 
 .card--elevated {
-  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-  box-shadow: var(--shadow);
+  background: var(--card-grad-elevated);
+  box-shadow: var(--shadow-md);
 }
 
 .card-title {
-  font-weight: 800;
-  font-size: 16px;
+  font-size: var(--font-h3-size);
+  line-height: var(--font-h3-line);
+  font-weight: 700;
 }
 
 .card-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--muted);
+  margin-top: var(--space-1);
+  font-size: var(--font-body-sm-size);
+  line-height: var(--font-body-sm-line);
+  color: var(--text-muted);
 }
 
 .pill {
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
-  background: rgba(255,255,255,.03);
+  font-size: var(--font-meta-size);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
 }
 
-/* Buttons */
+[data-theme="light"] .pill {
+  background: var(--c-cloud-100);
+}
+
+.stat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  min-width: 132px;
+  border: 1px solid var(--border-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.stat-panel--warm {
+  border-color: var(--border-warm);
+  background: var(--warm-soft);
+  color: var(--warm);
+}
+
+.stat-panel-label {
+  font-size: var(--font-micro-size);
+  letter-spacing: var(--font-micro-track);
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.stat-panel-value {
+  font-size: var(--font-meta-size);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.stat-panel-meta {
+  font-size: var(--font-micro-size);
+  opacity: 0.85;
+}
+
+.input-field {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-3);
+  font-size: var(--font-body-size);
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--motion-base) var(--ease-standard),
+              background var(--motion-base) var(--ease-standard);
+}
+
+[data-theme="light"] .input-field {
+  background: var(--c-white);
+}
+
+.input-field::placeholder {
+  color: var(--text-faint);
+}
+
+.input-field:hover {
+  border-color: var(--border-strong);
+}
+
+.input-field:focus,
+.input-field:focus-visible {
+  border-color: var(--border-accent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .input-field:focus,
+[data-theme="light"] .input-field:focus-visible {
+  background: var(--c-white);
+}
+
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-family: inherit;
+  outline: none;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: var(--c-white);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--border-accent);
+}
+
+
+/* =====================================================================
+ * §9 — Buttons
+ * .btn-brand is reserved — see doctrine §4 at top of file.
+ * ===================================================================== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: var(--font-body-size);
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
   border: 1px solid transparent;
-  transition: transform .06s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
+  transition: transform var(--motion-fast) var(--ease-standard),
+              background var(--motion-base) var(--ease-standard),
+              border-color var(--motion-base) var(--ease-standard),
+              opacity var(--motion-base) var(--ease-standard);
 }
-.btn:active { transform: translateY(1px); }
-.btn[aria-disabled="true"], .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn[aria-disabled="true"],
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .btn-primary {
   background: var(--accent);
-  color: #001018;
-  border-color: rgba(0,0,0,.10);
+  color: var(--text-on-accent);
+  border-color: rgba(0, 0, 0, 0.10);
 }
-.btn-primary:hover { background: var(--accentHover); color: #001018; }
+.btn-primary:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+}
 
 .btn-secondary {
-  background: rgba(255,255,255,.05);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   border-color: var(--border);
 }
-.btn-secondary:hover { background: rgba(255,255,255,.08); }
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .btn-secondary {
+  background: var(--c-white);
+  border-color: var(--border-strong);
+}
+[data-theme="light"] .btn-secondary:hover {
+  background: var(--c-cloud-100);
+}
 
 .btn-brand {
-  background: linear-gradient(135deg, #d946ef 0%, #a21caf 100%);
-  color: #fff;
-  border-color: rgba(255,255,255,.12);
-  box-shadow: 0 10px 22px rgba(169, 31, 175, .28);
+  background: var(--brand-grad);
+  color: var(--text-on-brand);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--brand-shadow);
 }
 .btn-brand:hover {
-  background: linear-gradient(135deg, #e66bf3 0%, #b63ad0 100%);
-  color: #fff;
+  background: var(--brand-grad-hover);
+  color: var(--text-on-brand);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
   border-color: transparent;
 }
-.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,.04); }
-
-/* Inputs */
-input, select, textarea {
-  background: rgba(255,255,255,.04);
+.btn-ghost:hover {
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  outline: none;
+  background: rgba(255, 255, 255, 0.04);
 }
-input::placeholder, textarea::placeholder { color: rgba(255,255,255,.45); }
-input:focus, textarea:focus, select:focus { border-color: rgba(34,211,238,.45); }
 
-/* Nav: make it match theme even if the component uses inline styles */
+[data-theme="light"] .btn-ghost:hover {
+  background: var(--c-cloud-100);
+}
+
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger:hover {
+  background: var(--danger);
+  color: var(--c-white);
+}
+
+
+/* =====================================================================
+ * §10 — Header
+ * Frosted-glass treatment is part of the brand DNA.
+ * ===================================================================== */
 header {
-  background: rgba(6, 12, 22, .55);
+  background: var(--surface-glass);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border) !important;
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+
+/* =====================================================================
+ * §11 — Utility classes
+ * ===================================================================== */
+.stack-1 { display: grid; gap: var(--space-1); }
+.stack-2 { display: grid; gap: var(--space-2); }
+.stack-3 { display: grid; gap: var(--space-3); }
+.stack-4 { display: grid; gap: var(--space-4); }
+.stack-5 { display: grid; gap: var(--space-5); }
+.stack-6 { display: grid; gap: var(--space-6); }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.grid-cards {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.grid-cards-sm {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.text-display {
+  font-size: var(--font-display-size);
+  line-height: var(--font-display-line);
+  letter-spacing: var(--font-display-track);
+  font-weight: 700;
+}
+.text-h1 {
+  font-size: var(--font-h1-size);
+  line-height: var(--font-h1-line);
+  letter-spacing: var(--font-h1-track);
+  font-weight: 700;
+}
+.text-h2 {
+  font-size: var(--font-h2-size);
+  line-height: var(--font-h2-line);
+  letter-spacing: var(--font-h2-track);
+  font-weight: 700;
+}
+.text-h3 {
+  font-size: var(--font-h3-size);
+  line-height: var(--font-h3-line);
+  letter-spacing: var(--font-h3-track);
+  font-weight: 600;
+}
+.text-body { font-size: var(--font-body-size); line-height: var(--font-body-line); }
+.text-body-sm { font-size: var(--font-body-sm-size); line-height: var(--font-body-sm-line); }
+.text-meta { font-size: var(--font-meta-size); line-height: var(--font-meta-line); }
+.text-micro {
+  font-size: var(--font-micro-size);
+  line-height: var(--font-micro-line);
+  letter-spacing: var(--font-micro-track);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+
+
+/* =====================================================================
+ * §12 — Accessibility
+ * ===================================================================== */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
+/* =====================================================================
+ * §13 — Reduced motion
+ * ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
