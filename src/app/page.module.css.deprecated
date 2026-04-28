@@ -1,3 +1,7 @@
+/* DEPRECATED — Apr 28 2026. This was the Next.js starter scaffold.
+   Conflicted with globals.css dark theme. Kept on path for git history.
+   Safe to delete after Jul 28 2026 if no references appear. */
+
 .page {
   --background: #fafafa;
   --foreground: #fff;
