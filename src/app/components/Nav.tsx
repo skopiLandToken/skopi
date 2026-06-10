@@ -134,9 +134,13 @@ export default async function Nav() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>
-          <a href="/" style={{ textDecoration: "none" }}>SKOpi</a>
-        </div>
+        <a href="/" className="brand-logo" aria-label="SKOpi home">
+          <svg viewBox="0 0 40 40" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M13 5 L27 5 L31 22 L20 36 L9 22 Z" fill="#22d3ee" />
+            <path d="M16 12 L24 12 L26.5 22 L20 30 L13.5 22 Z" fill="#07111f" />
+          </svg>
+          SKOpi
+        </a>
 
         <nav style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <Button href="/sale" variant="brand">Buy SKOpi Now</Button>
